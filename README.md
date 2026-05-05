@@ -421,17 +421,24 @@ Shipped in 0.2.0:
 - ✅ Deeper Obsidian integration (tags, aliases, Map of Content)
 - ✅ MCP server for agent integration
 
-Future ideas (open to discussion):
+Next up:
+
+- **Read-only local web UI** — browse `wiki/` without Obsidian: sidebar, markdown rendering, wikilinks, search, and provenance/citation panels.
+- **Graph/context layer** — page-neighborhood tools, graph paths, gap detection, and token-budgeted context packs for agents.
+- **Evaluation harness** — benchmark answer quality, citation accuracy, update drift, retrieval recall, and scale curves against serious retrieval baselines.
+- **Task and decision ledger** — turn session ingest into durable agent memory: goals, decisions, open questions, outcomes, and next-agent handoffs.
+- **Rollback, audit, and source lifecycle** — undo/reverse ingest, compile diff reports, stale-claim checks, freshness reports, and a durable operation log.
+- **Domain templates** — schema/prompt packs for research, codebase docs, team handbooks, decision logs, and standards/regulations.
+
+Later / open to discussion:
 
 - Recurring source refresh jobs — re-ingest URLs on a schedule, diff against the prior snapshot, re-compile only what changed
-- Graph export and a lightweight read-only graph browser for the concept network
-- A local read-only web UI for browsing the compiled wiki without Obsidian
-- MCP prompt resources — curated agent prompts (review the wiki, propose new sources, draft a comparison page) shipped as MCP resources
-- Maintenance log + log rotation so long-running watch sessions don't grow unbounded
+- MCP prompt resources — curated agent prompts such as "review the wiki", "propose new sources", and "draft a comparison page"
+- Team-chat connectors for Slack/Discord/Teams-style institutional memory
 
-If you like ambitious problems: **graph export with a browser**, **recurring source refresh**, and **MCP prompt resources** are the meatiest of the futures. Open an issue to claim one or kick off a design discussion.
+If you like ambitious problems: **local web UI**, **graph/context packs**, and **eval harness** are the meatiest next contributions. Open an issue to claim one or kick off a design discussion.
 
-Explicitly not planned (good ideas, just not for this repo): full static-site generator, desktop or mobile apps, fine-tuning, a formal ontology engine, heavy graph reasoning.
+Explicitly not planned (good ideas, just not for this repo): full static-site generator, desktop or mobile apps, fine-tuning, a formal ontology engine, heavy graph database infrastructure.
 
 ## Requirements
 
