@@ -27,8 +27,17 @@ llmwiki compile
 llmwiki query "what is X?"
 ```
 
+
+<br>
+
+---
+
+<br>
+
+
 <details>
-<summary><h2>Configuration — click to expand provider, timeout, language, and prompt-budget options</h2></summary>
+<summary><span style="font-size: 1.4em;"><strong>Configuration — click to expand</strong></span></summary>
+
 
 llmwiki configures providers via environment variables. The default provider is Anthropic.
 
@@ -161,6 +170,14 @@ A truncation warning prints to stderr when the cap fires so you know which conce
 
 </details>
 
+
+<br>
+
+---
+
+<br>
+
+
 ## Why not just RAG?
 
 RAG retrieves chunks at query time. Every question re-discovers the same relationships from scratch. Nothing accumulates.
@@ -211,8 +228,17 @@ Related concepts: [[Propositional Logic]], [[Model Counting]]
 
 Pages include source attribution in frontmatter. Paragraphs are annotated with `^[filename.md]` markers pointing back to the source file that contributed the content; specific claims can use line ranges like `^[filename.md:42-58]` or `^[filename.md#L42-L58]`.
 
+
+<br>
+
+---
+
+<br>
+
+
 <details>
-<summary><h2>CLI and wiki model — click to expand commands, output layout, review queue, metadata, provenance, and schema details</h2></summary>
+<summary><span style="font-size: 1.4em;"><strong>CLI and wiki model — click to expand</strong></span></summary>
+
 
 ## Commands
 
@@ -344,6 +370,14 @@ Schema rules can set per-kind `minWikilinks` and optional `seedPages`. Compile c
 
 </details>
 
+
+<br>
+
+---
+
+<br>
+
+
 ## Demo
 
 Try it on any article or document:
@@ -357,8 +391,17 @@ llmwiki query "What terms did Andrej coin?"
 
 See `examples/basic/` in the repo for pre-generated output you can browse without an API key.
 
+
+<br>
+
+---
+
+<br>
+
+
 <details>
-<summary><h2>MCP Server — click to expand agent setup, tools, and resources</h2></summary>
+<summary><span style="font-size: 1.4em;"><strong>MCP Server — click to expand</strong></span></summary>
+
 
 ## MCP Server
 
@@ -418,6 +461,14 @@ Tools that need an LLM (`compile_wiki`, `query_wiki`, `search_pages`) check for 
 
 </details>
 
+
+<br>
+
+---
+
+<br>
+
+
 ## Limitations
 
 Early software. Best for small, high-signal corpora (a few dozen sources). Query routing is index-based.
@@ -446,6 +497,8 @@ Karpathy describes an abstract pattern for turning raw data into compiled knowle
 Shipped in 0.7.0:
 
 - ✅ Read-only local web viewer — `llmwiki view` with sidebar navigation, markdown rendering, search, metadata, health counts, and provenance/citation chips
+- ✅ GitHub Copilot provider — `LLMWIKI_PROVIDER=copilot` with `GITHUB_TOKEN=$(gh auth token)` for Copilot chat/tool calls
+- ✅ Cached lint health summary — `llmwiki lint` writes `.llmwiki/last-lint.json` so viewer health can show the latest lint counts without re-running lint
 
 Shipped in 0.6.0:
 

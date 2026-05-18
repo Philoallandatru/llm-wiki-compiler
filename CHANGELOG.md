@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.7.0] - 2026-05-18
 
-Adds the first local web viewer for compiled wikis: a read-only browser UI for navigating generated pages, searching the wiki, inspecting metadata, and following provenance without requiring Obsidian.
+Adds the first local web viewer for compiled wikis, a GitHub Copilot provider, and a persisted lint summary that lets the viewer report wiki health without re-running lint on every page load.
 
 ### Added
 
@@ -15,6 +15,7 @@ Adds the first local web viewer for compiled wikis: a read-only browser UI for n
 - **Citation chips in the viewer** — paragraph citations and claim-level source ranges render as visible chips. On loopback binds, chips can include local editor links for source-line context; LAN binds omit filesystem paths and editor links.
 - **Secure-by-default local server** — `view` binds to `127.0.0.1` by default, uses an OS-assigned port unless `--port` is provided, and requires `--host <host>` and `--allow-lan` together before binding beyond loopback. The server applies pinned CSP / CORP / nosniff / referrer headers, Host / Origin / Sec-Fetch checks, and path confinement for all served files.
 - **Viewer health payload** — `/api/health` exposes cheap project counts, pending review count parity with MCP `wiki_status`, and the latest cached lint summary when available.
+- **GitHub Copilot provider** — `LLMWIKI_PROVIDER=copilot` uses the GitHub Copilot API with `GITHUB_TOKEN=$(gh auth token)` from an OAuth token that has the `copilot` scope. Copilot supports chat/tool calls but does not expose embeddings, so embedding-dependent semantic search should use another provider.
 
 ### Changed
 
@@ -24,6 +25,10 @@ Adds the first local web viewer for compiled wikis: a read-only browser UI for n
 ### Test infrastructure
 
 - Added subprocess, path-safety, sanitizer, accessibility, JS DOM, pack-asset, and server-security coverage for the viewer. Tests grew from 632 to 850 in this release.
+
+### Contributors
+
+Thanks to **@cadamsdev** for contributing the GitHub Copilot provider in PR #55.
 
 ## [0.6.0] - 2026-05-02
 
