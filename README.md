@@ -25,6 +25,7 @@ export ANTHROPIC_API_KEY=sk-...
 llmwiki ingest https://some-article.com
 llmwiki compile
 llmwiki query "what is X?"
+llmwiki view --open
 ```
 
 
