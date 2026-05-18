@@ -388,6 +388,7 @@ mkdir my-wiki && cd my-wiki
 llmwiki ingest https://en.wikipedia.org/wiki/Andrej_Karpathy
 llmwiki compile
 llmwiki query "What terms did Andrej coin?"
+llmwiki view --open
 ```
 
 See `examples/basic/` in the repo for pre-generated output you can browse without an API key.
