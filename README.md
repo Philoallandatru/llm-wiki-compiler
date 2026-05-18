@@ -28,7 +28,7 @@ llmwiki query "what is X?"
 ```
 
 <details>
-<summary><strong>Configuration</strong></summary>
+<summary><h2>Configuration — click to expand provider, timeout, language, and prompt-budget options</h2></summary>
 
 llmwiki configures providers via environment variables. The default provider is Anthropic.
 
@@ -212,7 +212,7 @@ Related concepts: [[Propositional Logic]], [[Model Counting]]
 Pages include source attribution in frontmatter. Paragraphs are annotated with `^[filename.md]` markers pointing back to the source file that contributed the content; specific claims can use line ranges like `^[filename.md:42-58]` or `^[filename.md#L42-L58]`.
 
 <details>
-<summary><strong>Commands, output, review, metadata, provenance, and schema</strong></summary>
+<summary><h2>CLI and wiki model — click to expand commands, output layout, review queue, metadata, provenance, and schema details</h2></summary>
 
 ## Commands
 
@@ -358,7 +358,7 @@ llmwiki query "What terms did Andrej coin?"
 See `examples/basic/` in the repo for pre-generated output you can browse without an API key.
 
 <details>
-<summary><strong>MCP Server</strong></summary>
+<summary><h2>MCP Server — click to expand agent setup, tools, and resources</h2></summary>
 
 ## MCP Server
 
