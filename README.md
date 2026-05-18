@@ -226,6 +226,7 @@ Pages include source attribution in frontmatter. Paragraphs are annotated with `
 | `llmwiki query "question"` | Ask questions against your compiled wiki |
 | `llmwiki query "question" --save` | Answer and save the result as a wiki page |
 | `llmwiki export [--target <name>]` | Export the wiki to portable formats — `llms.txt`, `llms-full.txt`, JSON, JSON-LD, GraphML, Marp slides |
+| `llmwiki view [--open]` | Start a read-only local web viewer for browsing, searching, and inspecting the compiled wiki |
 | `llmwiki lint` | Check wiki quality (broken links, orphans, empty pages, low confidence, contradictions, etc.) |
 | `llmwiki watch` | Auto-recompile when `sources/` changes |
 | `llmwiki serve [--root <dir>]` | Start an MCP server exposing wiki tools to AI agents |
@@ -244,6 +245,17 @@ wiki/
 ```
 
 Obsidian-compatible. `[[wikilinks]]` resolve to concept titles.
+
+## Local web viewer
+
+Run `llmwiki view` from a project root to browse the compiled wiki in a local browser without Obsidian. The viewer is read-only: it renders `wiki/`, exposes sidebar navigation, search, page metadata, health counts, and provenance/citation chips, but does not mutate sources or generated pages.
+
+```bash
+llmwiki view          # prints Viewer ready at http://127.0.0.1:<port>
+llmwiki view --open   # also opens the URL in your default browser
+```
+
+The server is private by default. It binds to `127.0.0.1` unless you explicitly provide both `--host <host>` and `--allow-lan`; wildcard hosts are rejected. Viewer responses use a strict local-asset CSP and path-confinement checks so the UI can safely render local markdown content.
 
 ## Review queue
 
@@ -418,6 +430,10 @@ Karpathy describes an abstract pattern for turning raw data into compiled knowle
 
 ## Roadmap
 
+Shipped in 0.7.0:
+
+- ✅ Read-only local web viewer — `llmwiki view` with sidebar navigation, markdown rendering, search, metadata, health counts, and provenance/citation chips
+
 Shipped in 0.6.0:
 
 - ✅ Export bundle (`llms.txt`, JSON, JSON-LD, GraphML, Marp slides)
@@ -452,7 +468,6 @@ Shipped in 0.2.0:
 
 Next up:
 
-- **Read-only local web UI** — browse `wiki/` without Obsidian: sidebar, markdown rendering, wikilinks, search, and provenance/citation panels.
 - **Graph/context layer** — page-neighborhood tools, graph paths, gap detection, and token-budgeted context packs for agents.
 - **Evaluation harness** — benchmark answer quality, citation accuracy, update drift, retrieval recall, and scale curves against serious retrieval baselines.
 - **Task and decision ledger** — turn session ingest into durable agent memory: goals, decisions, open questions, outcomes, and next-agent handoffs.

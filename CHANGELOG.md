@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-05-18
+
+Adds the first local web viewer for compiled wikis: a read-only browser UI for navigating generated pages, searching the wiki, inspecting metadata, and following provenance without requiring Obsidian.
+
+### Added
+
+- **`llmwiki view`** — starts a local read-only web viewer for the current project. The viewer includes a sidebar grouped by concepts and saved queries, a dashboard home, markdown rendering, wikilinks, title/body search, page metadata, health counts, and provenance/citation support rails.
+- **Citation chips in the viewer** — paragraph citations and claim-level source ranges render as visible chips. On loopback binds, chips can include local editor links for source-line context; LAN binds omit filesystem paths and editor links.
+- **Secure-by-default local server** — `view` binds to `127.0.0.1` by default, uses an OS-assigned port unless `--port` is provided, and requires `--host <host>` and `--allow-lan` together before binding beyond loopback. The server applies pinned CSP / CORP / nosniff / referrer headers, Host / Origin / Sec-Fetch checks, and path confinement for all served files.
+- **Viewer health payload** — `/api/health` exposes cheap project counts, pending review count parity with MCP `wiki_status`, and the latest cached lint summary when available.
+
+### Changed
+
+- **`llmwiki lint` now writes `.llmwiki/last-lint.json`** after each completed lint run so the viewer can show a recent lint summary without running lint on every page load.
+- **Shared wiki page collection** — export and viewer collection now share the lower-level wiki collector while preserving each surface's own filtering and payload shape.
+
+### Test infrastructure
+
+- Added subprocess, path-safety, sanitizer, accessibility, JS DOM, pack-asset, and server-security coverage for the viewer. Tests grew from 632 to 850 in this release.
+
 ## [0.6.0] - 2026-05-02
 
 Adds session-history ingest (Claude / Codex / Cursor exports), configurable output language, and a defensive cap that prevents `compile` from crashing on popular concepts. Closes a batch of CJK / collision / silent-loss bugs in the ingest path. Tightens `compile --review` so candidates carry both schema AND provenance lint findings before approval. Extracts a shared `ProvenanceMetadata` shape and removes an unreliable LLM extraction-time estimate in favour of body-derived counts.
