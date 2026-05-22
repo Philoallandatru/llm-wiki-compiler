@@ -33,7 +33,7 @@ import { CONCEPTS_DIR, QUERIES_DIR } from "../utils/constants.js";
 import type { PageDirectory } from "../export/types.js";
 
 /** Regex that matches `[[wikilink]]` or `[[wikilink|alias]]` patterns. */
-const WIKILINK_RE = /\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g;
+const WIKILINK_RE = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g;
 
 /**
  * Structural status of a single page's frontmatter, surfaced to callers so
@@ -85,6 +85,29 @@ export function extractWikilinkSlugs(body: string): string[] {
     slugs.add(slugify(match[1].trim()));
   }
   return [...slugs];
+}
+
+/**
+ * Like `extractWikilinkSlugs` but also preserves the original human-typed
+ * text for each target. Used to give dangling-link ghost nodes a readable
+ * title instead of a slugified identifier.
+ */
+export function extractWikilinkTargets(body: string): { slug: string; display: string }[] {
+  const seen = new Set<string>();
+  const targets: { slug: string; display: string }[] = [];
+  WIKILINK_RE.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = WIKILINK_RE.exec(body)) !== null) {
+    const target = match[1].trim();
+    const alias = match[2]?.trim();
+    const slug = slugify(target);
+    const display = alias ?? target;
+    if (!seen.has(slug)) {
+      seen.add(slug);
+      targets.push({ slug, display });
+    }
+  }
+  return targets;
 }
 
 /**
