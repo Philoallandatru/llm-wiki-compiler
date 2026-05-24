@@ -105,6 +105,21 @@ export async function getProject(
 }
 
 /**
+ * Get a specific project config by ID.
+ * Throws an error if project doesn't exist.
+ */
+export async function getProjectById(
+  root: string,
+  projectId: string,
+): Promise<ProjectConfig> {
+  const project = await getProject(root, projectId);
+  if (!project) {
+    throw new Error(`Project "${projectId}" not found`);
+  }
+  return project;
+}
+
+/**
  * Get the currently active project config.
  * Falls back to default project if not set.
  */

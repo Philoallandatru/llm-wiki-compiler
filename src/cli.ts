@@ -260,11 +260,12 @@ program
   .command("serve")
   .description("Start an MCP server exposing wiki tools and resources over stdio")
   .option("--root <dir>", "Project root directory", process.cwd())
-  .action(async (options: { root: string }) => {
+  .option("--project <id>", "Bind server to a specific project (default: active project)")
+  .action(async (options: { root: string; project?: string }) => {
     try {
       // Per-tool credential checks happen inside the MCP layer so read-only
       // tools and ingest still work without an API key.
-      await startMCPServer({ root: options.root, version });
+      await startMCPServer({ root: options.root, version, projectId: options.project });
     } catch (err) {
       console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
       process.exit(1);
