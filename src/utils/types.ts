@@ -126,6 +126,8 @@ export interface CompileOptions {
    * of mutating wiki/. Reviewers approve/reject via `llmwiki review`.
    */
   review?: boolean;
+  /** Optional project ID for multi-project support. */
+  projectId?: string;
 }
 
 /**

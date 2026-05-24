@@ -43,9 +43,13 @@ function shortHashOfSource(source: string): string {
  *   share a basename coexist instead of one silently overwriting the
  *   other.
  */
-async function resolveCollisionFreeFilename(slug: string, source: string): Promise<string> {
+async function resolveCollisionFreeFilename(
+  slug: string,
+  source: string,
+  sourcesDir = SOURCES_DIR,
+): Promise<string> {
   const candidate = `${slug}.md`;
-  const candidatePath = path.join(SOURCES_DIR, candidate);
+  const candidatePath = path.join(sourcesDir, candidate);
   let existing: string;
   try {
     existing = await readFile(candidatePath, "utf-8");
@@ -70,11 +74,13 @@ async function resolveCollisionFreeFilename(slug: string, source: string): Promi
  * @param document - Full markdown content (frontmatter + body) to write.
  * @param source - Source identity (URL, file path, etc.) used both for
  *                 collision disambiguation and idempotency on re-ingest.
+ * @param sourcesDir - Optional custom sources directory (for multi-project support).
  */
 export async function saveSource(
   title: string,
   document: string,
   source: string,
+  sourcesDir = SOURCES_DIR,
 ): Promise<string> {
   const slug = slugify(title);
   // Defense in depth — even with the Unicode-aware slugifier (#35), a
@@ -87,9 +93,9 @@ export async function saveSource(
         `Rename the source file to one with at least one letter or digit.`,
     );
   }
-  await mkdir(SOURCES_DIR, { recursive: true });
-  const filename = await resolveCollisionFreeFilename(slug, source);
-  const destPath = path.join(SOURCES_DIR, filename);
+  await mkdir(sourcesDir, { recursive: true });
+  const filename = await resolveCollisionFreeFilename(slug, source, sourcesDir);
+  const destPath = path.join(sourcesDir, filename);
   await writeFile(destPath, document, "utf-8");
   return destPath;
 }

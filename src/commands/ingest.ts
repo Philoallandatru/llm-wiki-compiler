@@ -253,9 +253,10 @@ async function fetchContent(
  * Used by the MCP server's ingest_source tool.
  *
  * @param source - A URL (http/https), YouTube URL, local file, PDF, or image path.
+ * @param sourcesDir - Optional custom sources directory (for multi-project support).
  * @returns Saved filename, character count, truncation flag, source URI, and detected source type.
  */
-export async function ingestSource(source: string): Promise<IngestResult> {
+export async function ingestSource(source: string, sourcesDir?: string): Promise<IngestResult> {
   const sourceType = await detectSourceType(source);
   output.status("*", output.info(`Ingesting [${sourceType}]: ${source}`));
 
@@ -264,7 +265,7 @@ export async function ingestSource(source: string): Promise<IngestResult> {
   const result = enforceCharLimit(content);
   enforceMinContent(result.content);
   const document = buildDocument(title, source, result, sourceType);
-  const savedPath = await saveSource(title, document, source);
+  const savedPath = await saveSource(title, document, source, sourcesDir);
 
   return {
     filename: path.basename(savedPath),
@@ -278,10 +279,12 @@ export async function ingestSource(source: string): Promise<IngestResult> {
 /**
  * Ingest a source and save it to the sources/ directory.
  * @param source - A URL (http/https), YouTube URL, local file, PDF, or image path.
+ * @param sourcesDir - Optional custom sources directory (for multi-project support).
  */
-export default async function ingest(source: string): Promise<void> {
-  const result = await ingestSource(source);
-  const savedPath = path.join(SOURCES_DIR, result.filename);
+export default async function ingest(source: string, sourcesDir?: string): Promise<void> {
+  const targetDir = sourcesDir ?? SOURCES_DIR;
+  const result = await ingestSource(source, targetDir);
+  const savedPath = path.join(targetDir, result.filename);
 
   output.status(
     "+",

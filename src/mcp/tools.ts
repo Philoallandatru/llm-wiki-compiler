@@ -84,7 +84,11 @@ function registerIngestTool(server: McpServer, root: string): void {
       const previousCwd = process.cwd();
       try {
         process.chdir(root);
-        const result = await ingestSource(source);
+        // Get active project's sources directory
+        const { getActiveProject, resolveProjectPaths } = await import("../utils/project-config.js");
+        const project = await getActiveProject(root);
+        const paths = resolveProjectPaths(root, project);
+        const result = await ingestSource(source, paths.sourcesDir);
         return jsonResult(result);
       } finally {
         process.chdir(previousCwd);
@@ -106,7 +110,10 @@ function registerCompileTool(server: McpServer, root: string): void {
     },
     async () => {
       ensureProviderAvailable();
-      const result = await compileAndReport(root);
+      // Get active project ID to pass to compile
+      const { getActiveProject } = await import("../utils/project-config.js");
+      const project = await getActiveProject(root);
+      const result = await compileAndReport(root, { projectId: project.id });
       return jsonResult(result);
     },
   );
