@@ -250,6 +250,11 @@ Pages include source attribution in frontmatter. Paragraphs are annotated with `
 | `llmwiki compile` | Incremental compile: extract concepts, generate wiki pages |
 | `llmwiki compile --review` | Write candidate pages to `.llmwiki/candidates/` instead of `wiki/` so you can review before they land |
 | `llmwiki compile --lang <code>` | Generate wiki content in the given language (e.g. `Chinese`, `ja`, `zh-CN`); also works on `query` |
+| `llmwiki compile --project <id>` | Compile a specific project instead of the active project |
+| `llmwiki project add <id> <name>` | Create a new project with custom source and wiki directories |
+| `llmwiki project list` | List all projects and show which one is active |
+| `llmwiki project switch <id>` | Switch the active project |
+| `llmwiki project remove <id>` | Remove a project (does not delete files) |
 | `llmwiki review list` | List pending candidate pages |
 | `llmwiki review show <id>` | Print a candidate's title, summary, and body |
 | `llmwiki review approve <id>` | Promote a candidate into `wiki/` and refresh index/MOC/embeddings |
@@ -263,6 +268,7 @@ Pages include source attribution in frontmatter. Paragraphs are annotated with `
 | `llmwiki lint` | Check wiki quality (broken links, orphans, empty pages, low confidence, contradictions, etc.) |
 | `llmwiki watch` | Auto-recompile when `sources/` changes |
 | `llmwiki serve [--root <dir>]` | Start an MCP server exposing wiki tools to AI agents |
+| `llmwiki serve --project <id>` | Start an MCP server bound to a specific project |
 
 ## Output
 
@@ -275,9 +281,36 @@ wiki/
   schema.json       optional page-kind and cross-link policy
   candidates/       pending review candidates from `compile --review`
   candidates/archive/  rejected candidates kept for audit
+  projects.json     multi-project configuration (optional)
 ```
 
 Obsidian-compatible. `[[wikilinks]]` resolve to concept titles.
+
+## Multi-project support
+
+llmwiki supports managing multiple independent wikis within a single root directory. Each project has its own source and wiki directories, allowing you to organize different knowledge domains separately.
+
+```bash
+# Create projects
+llmwiki project add nvme-wiki "NVMe and SSD Wiki" \
+  --sources-dir projects/nvme-wiki/sources \
+  --wiki-dir projects/nvme-wiki/wiki
+
+llmwiki project add pci-wiki "PCI Express Wiki" \
+  --sources-dir projects/pci-wiki/sources \
+  --wiki-dir projects/pci-wiki/wiki
+
+# List projects
+llmwiki project list
+
+# Switch active project
+llmwiki project switch pci-wiki
+
+# Compile specific project
+llmwiki compile --project nvme-wiki
+```
+
+Projects are stored in `.llmwiki/projects.json`. The active project (set via `project switch`) is used by default for all commands. Most commands support `--project <id>` to override the active project for that invocation.
 
 ## Local web viewer
 
@@ -419,6 +452,14 @@ Start the server (stdio transport, no API key required at startup):
 llmwiki serve --root /path/to/your/wiki-project
 ```
 
+For multi-project setups, bind the MCP server to a specific project:
+
+```bash
+llmwiki serve --root /path/to/your/wiki-project --project nvme-wiki
+```
+
+When `--project` is specified, all MCP tools operate on that project's directories instead of the active project. This allows you to run multiple MCP server instances for different projects simultaneously.
+
 ### Claude Desktop / Cursor configuration
 
 Add to your client's MCP config (e.g. `claude_desktop_config.json`):
@@ -429,6 +470,29 @@ Add to your client's MCP config (e.g. `claude_desktop_config.json`):
     "llmwiki": {
       "command": "npx",
       "args": ["llm-wiki-compiler", "serve", "--root", "/path/to/wiki-project"],
+      "env": {
+        "ANTHROPIC_API_KEY": "sk-ant-..."
+      }
+    }
+  }
+}
+```
+
+For multi-project setups, you can configure separate MCP servers for each project:
+
+```json
+{
+  "mcpServers": {
+    "llmwiki-nvme": {
+      "command": "npx",
+      "args": ["llm-wiki-compiler", "serve", "--root", "/path/to/wiki-project", "--project", "nvme-wiki"],
+      "env": {
+        "ANTHROPIC_API_KEY": "sk-ant-..."
+      }
+    },
+    "llmwiki-pci": {
+      "command": "npx",
+      "args": ["llm-wiki-compiler", "serve", "--root", "/path/to/wiki-project", "--project", "pci-wiki"],
       "env": {
         "ANTHROPIC_API_KEY": "sk-ant-..."
       }
