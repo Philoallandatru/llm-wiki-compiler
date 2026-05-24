@@ -99,7 +99,7 @@ export async function compile(root: string, options: CompileOptions = {}): Promi
  * non-CLI consumers (the MCP server, programmatic callers) can report
  * meaningful data without scraping terminal output.
  * @param root - Project root directory.
- * @param options - Optional pipeline overrides (e.g. --review mode).
+ * @param options - Optional pipeline overrides (e.g. --review mode, projectId).
  * @returns Structured result describing what was compiled.
  */
 export async function compileAndReport(
@@ -107,6 +107,17 @@ export async function compileAndReport(
   options: CompileOptions = {},
 ): Promise<CompileResult> {
   output.header("llmwiki compile");
+
+  // Resolve project paths if projectId is provided
+  let sourcesDir = SOURCES_DIR;
+  let conceptsDir = CONCEPTS_DIR;
+  if (options.projectId) {
+    const { getProjectPaths } = await import("../utils/project-config.js");
+    const paths = await getProjectPaths(root, options.projectId);
+    sourcesDir = paths.sourcesDir;
+    conceptsDir = paths.conceptsDir;
+    output.status("*", output.info(`Using project: ${output.bold(options.projectId)}`));
+  }
 
   const locked = await acquireLock(root);
   if (!locked) {
@@ -118,7 +129,7 @@ export async function compileAndReport(
   }
 
   try {
-    return await runCompilePipeline(root, options);
+    return await runCompilePipeline(root, options, sourcesDir, conceptsDir);
   } finally {
     await releaseLock(root);
   }
@@ -244,11 +255,13 @@ function summarizeCompile(
 async function runCompilePipeline(
   root: string,
   options: CompileOptions,
+  sourcesDir: string = SOURCES_DIR,
+  conceptsDir: string = CONCEPTS_DIR,
 ): Promise<CompileResult> {
   const schema = await loadSchema(root);
   reportSchemaStatus(schema);
   const state = await readState(root);
-  const changes = await detectChanges(root, state);
+  const changes = await detectChanges(root, state, sourcesDir);
   augmentWithAffectedSources(changes, findAffectedSources(state, changes));
 
   const buckets = bucketChanges(changes);

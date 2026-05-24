@@ -56,17 +56,17 @@ function jsonResult(payload: unknown): {
 }
 
 /** Register all 7 wiki tools on the given MCP server instance. */
-export function registerWikiTools(server: McpServer, root: string): void {
-  registerIngestTool(server, root);
-  registerCompileTool(server, root);
-  registerQueryTool(server, root);
-  registerSearchTool(server, root);
-  registerReadTool(server, root);
-  registerLintTool(server, root);
-  registerStatusTool(server, root);
+export function registerWikiTools(server: McpServer, root: string, projectId?: string): void {
+  registerIngestTool(server, root, projectId);
+  registerCompileTool(server, root, projectId);
+  registerQueryTool(server, root, projectId);
+  registerSearchTool(server, root, projectId);
+  registerReadTool(server, root, projectId);
+  registerLintTool(server, root, projectId);
+  registerStatusTool(server, root, projectId);
 }
 
-function registerIngestTool(server: McpServer, root: string): void {
+function registerIngestTool(server: McpServer, root: string, projectId?: string): void {
   server.registerTool(
     "ingest_source",
     {
@@ -84,7 +84,8 @@ function registerIngestTool(server: McpServer, root: string): void {
       const previousCwd = process.cwd();
       try {
         process.chdir(root);
-        const result = await ingestSource(source);
+        const { paths } = await getProjectPaths(root, projectId);
+        const result = await ingestSource(source, paths.sourcesDir);
         return jsonResult(result);
       } finally {
         process.chdir(previousCwd);
@@ -93,7 +94,7 @@ function registerIngestTool(server: McpServer, root: string): void {
   );
 }
 
-function registerCompileTool(server: McpServer, root: string): void {
+function registerCompileTool(server: McpServer, root: string, projectId?: string): void {
   server.registerTool(
     "compile_wiki",
     {
@@ -106,13 +107,16 @@ function registerCompileTool(server: McpServer, root: string): void {
     },
     async () => {
       ensureProviderAvailable();
-      const result = await compileAndReport(root);
+      // Get project ID to pass to compile (use specified project or active project)
+      const { getActiveProject } = await import("../utils/project-config.js");
+      const effectiveProjectId = projectId || (await getActiveProject(root)).id;
+      const result = await compileAndReport(root, { projectId: effectiveProjectId });
       return jsonResult(result);
     },
   );
 }
 
-function registerQueryTool(server: McpServer, root: string): void {
+function registerQueryTool(server: McpServer, root: string, projectId?: string): void {
   server.registerTool(
     "query_wiki",
     {
@@ -142,7 +146,20 @@ function registerQueryTool(server: McpServer, root: string): void {
   );
 }
 
-function registerSearchTool(server: McpServer, root: string): void {
+/**
+ * Helper function to resolve project paths.
+ * Returns the project configuration and resolved paths.
+ */
+async function getProjectPaths(root: string, projectId?: string) {
+  const { getActiveProject, getProjectById, resolveProjectPaths } = await import("../utils/project-config.js");
+  const project = projectId
+    ? await getProjectById(root, projectId)
+    : await getActiveProject(root);
+  const paths = resolveProjectPaths(root, project);
+  return { project, paths };
+}
+
+function registerSearchTool(server: McpServer, root: string, projectId?: string): void {
   server.registerTool(
     "search_pages",
     {
@@ -157,8 +174,8 @@ function registerSearchTool(server: McpServer, root: string): void {
     },
     async ({ question }) => {
       ensureProviderAvailable();
-      const slugs = await pickSearchSlugs(root, question);
-      const records = await loadPageRecords(root, slugs);
+      const slugs = await pickSearchSlugs(root, question, projectId);
+      const records = await loadPageRecords(root, slugs, projectId);
       return jsonResult({ pages: records });
     },
   );
@@ -169,7 +186,10 @@ function registerSearchTool(server: McpServer, root: string): void {
  * precision), then falls back to page-level embeddings, then to LLM-driven
  * selection over the wiki index.
  */
-async function pickSearchSlugs(root: string, question: string): Promise<string[]> {
+async function pickSearchSlugs(root: string, question: string, projectId?: string): Promise<string[]> {
+  const { paths } = await getProjectPaths(root, projectId);
+  const wikiDir = path.join(root, paths.wikiDir);
+
   try {
     const chunks = await findRelevantChunks(root, question, CHUNK_TOP_K);
     if (chunks.length > 0) return dedupePreservingOrder(chunks.map((c) => c.chunk.slug));
@@ -184,7 +204,7 @@ async function pickSearchSlugs(root: string, question: string): Promise<string[]
     // Embeddings unavailable — fall through to index-based selection.
   }
 
-  const indexContent = await safeReadFile(path.join(root, INDEX_FILE));
+  const indexContent = await safeReadFile(path.join(wikiDir, "index.md"));
   const { pages } = await selectPages(question, indexContent);
   return pages;
 }
@@ -201,7 +221,7 @@ function dedupePreservingOrder(slugs: string[]): string[] {
   return out;
 }
 
-function registerReadTool(server: McpServer, root: string): void {
+function registerReadTool(server: McpServer, root: string, projectId?: string): void {
   server.registerTool(
     "read_page",
     {
@@ -214,7 +234,7 @@ function registerReadTool(server: McpServer, root: string): void {
       },
     },
     async ({ slug }) => {
-      const page = await readPage(root, slug);
+      const page = await readPage(root, slug, projectId);
       if (!page) {
         throw new Error(`Page not found: ${slug}`);
       }
@@ -223,7 +243,7 @@ function registerReadTool(server: McpServer, root: string): void {
   );
 }
 
-function registerLintTool(server: McpServer, root: string): void {
+function registerLintTool(server: McpServer, root: string, projectId?: string): void {
   server.registerTool(
     "lint_wiki",
     {
@@ -240,7 +260,7 @@ function registerLintTool(server: McpServer, root: string): void {
   );
 }
 
-function registerStatusTool(server: McpServer, root: string): void {
+function registerStatusTool(server: McpServer, root: string, projectId?: string): void {
   server.registerTool(
     "wiki_status",
     {
@@ -251,17 +271,23 @@ function registerStatusTool(server: McpServer, root: string): void {
         "modifies the workspace.",
       inputSchema: {},
     },
-    async () => jsonResult(await collectStatus(root)),
+    async () => jsonResult(await collectStatus(root, projectId)),
   );
 }
 
 /** Read-only status snapshot used by the wiki_status tool. */
-async function collectStatus(root: string): Promise<WikiStatus> {
-  const concepts = await collectPageSummaries(path.join(root, CONCEPTS_DIR));
-  const queries = await collectPageSummaries(path.join(root, QUERIES_DIR));
+async function collectStatus(root: string, projectId?: string): Promise<WikiStatus> {
+  const { paths } = await getProjectPaths(root, projectId);
+
+  const conceptsDir = path.join(root, paths.conceptsDir);
+  const queriesDir = path.join(root, paths.queriesDir);
+  const sourcesDir = path.join(root, paths.sourcesDir);
+
+  const concepts = await collectPageSummaries(conceptsDir);
+  const queries = await collectPageSummaries(queriesDir);
   const state = await readState(root);
-  const changes = await detectChanges(root, state);
-  const orphans = await findOrphanedSlugs(root);
+  const changes = await detectChanges(root, state, sourcesDir);
+  const orphans = await findOrphanedSlugs(root, projectId);
   const pendingCandidates = await countCandidates(root);
   const compileTimes = Object.values(state.sources).map((s) => s.compiledAt);
   const lastCompile = compileTimes.length > 0
@@ -291,16 +317,18 @@ interface WikiStatus {
 }
 
 /** Find concept slugs whose pages are flagged as orphaned. */
-async function findOrphanedSlugs(root: string): Promise<string[]> {
-  const scanned = await scanWikiPages(path.join(root, CONCEPTS_DIR));
+async function findOrphanedSlugs(root: string, projectId?: string): Promise<string[]> {
+  const { paths } = await getProjectPaths(root, projectId);
+  const conceptsDir = path.join(root, paths.conceptsDir);
+  const scanned = await scanWikiPages(conceptsDir);
   return scanned.filter(({ meta }) => meta.orphaned).map(({ slug }) => slug);
 }
 
 /** Load full content for a list of slugs, skipping missing/orphaned pages. */
-async function loadPageRecords(root: string, slugs: string[]): Promise<PageRecord[]> {
+async function loadPageRecords(root: string, slugs: string[], projectId?: string): Promise<PageRecord[]> {
   const records: PageRecord[] = [];
   for (const slug of slugs) {
-    const page = await readPage(root, slug);
+    const page = await readPage(root, slug, projectId);
     if (page) records.push(page);
   }
   return records;
@@ -310,9 +338,16 @@ async function loadPageRecords(root: string, slugs: string[]): Promise<PageRecor
  * Locate a page by slug across the priority-ordered page directories,
  * skipping orphaned entries to match the query pipeline's behaviour.
  */
-export async function readPage(root: string, slug: string): Promise<PageRecord | null> {
-  for (const dir of PAGE_DIRS) {
-    const content = await safeReadFile(path.join(root, dir, `${slug}.md`));
+export async function readPage(root: string, slug: string, projectId?: string): Promise<PageRecord | null> {
+  const { paths } = await getProjectPaths(root, projectId);
+
+  const pageDirs = [
+    path.join(root, paths.conceptsDir),
+    path.join(root, paths.queriesDir),
+  ];
+
+  for (const dir of pageDirs) {
+    const content = await safeReadFile(path.join(dir, `${slug}.md`));
     if (!content) continue;
 
     const { meta, body } = parseFrontmatter(content);

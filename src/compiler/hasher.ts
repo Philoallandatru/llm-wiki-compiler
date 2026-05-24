@@ -27,18 +27,20 @@ export async function hashFile(filePath: string): Promise<string> {
  * to identify new, changed, unchanged, and deleted source files.
  * @param root - Project root directory containing the sources/ folder.
  * @param prevState - The previously persisted WikiState to compare against.
+ * @param sourcesDir - Optional custom sources directory (for multi-project support).
  * @returns Array of SourceChange entries describing each file's status.
  */
 export async function detectChanges(
   root: string,
   prevState: WikiState,
+  sourcesDir = SOURCES_DIR,
 ): Promise<SourceChange[]> {
-  const sourcesPath = path.join(root, SOURCES_DIR);
+  const sourcesPath = path.join(root, sourcesDir);
   const currentFiles = await listSourceFiles(sourcesPath);
   const changes: SourceChange[] = [];
 
   for (const file of currentFiles) {
-    const status = await classifyFile(root, file, prevState);
+    const status = await classifyFile(root, file, prevState, sourcesDir);
     changes.push({ file, status });
   }
 
@@ -73,8 +75,9 @@ async function classifyFile(
   root: string,
   file: string,
   prevState: WikiState,
+  sourcesDir = SOURCES_DIR,
 ): Promise<SourceChange["status"]> {
-  const filePath = path.join(root, SOURCES_DIR, file);
+  const filePath = path.join(root, sourcesDir, file);
   const hash = await hashFile(filePath);
   const prev = prevState.sources[file];
 

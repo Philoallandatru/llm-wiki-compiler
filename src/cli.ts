@@ -22,6 +22,13 @@ import reviewListCommand from "./commands/review-list.js";
 import reviewShowCommand from "./commands/review-show.js";
 import reviewApproveCommand from "./commands/review-approve.js";
 import reviewRejectCommand from "./commands/review-reject.js";
+import {
+  projectAddCommand,
+  projectListCommand,
+  projectSwitchCommand,
+  projectRemoveCommand,
+  projectShowCommand,
+} from "./commands/project.js";
 import { startMCPServer } from "./mcp/server.js";
 import { DEFAULT_PROVIDER } from "./utils/constants.js";
 import { resolveAnthropicAuthFromEnv } from "./utils/claude-settings.js";
@@ -39,9 +46,12 @@ program
 program
   .command("ingest <source>")
   .description("Ingest a URL or local file into sources/")
-  .action(async (source: string) => {
+  .option("-p, --project <id>", "Target project (uses active project if not specified)")
+  .action(async (source: string, options: { project?: string }) => {
     try {
-      await ingestCommand(source);
+      const { createProjectContext } = await import("./utils/project-resolver.js");
+      const { paths } = await createProjectContext(process.cwd(), options.project);
+      await ingestCommand(source, paths.sourcesDir);
     } catch (err) {
       console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
       process.exit(1);
@@ -87,11 +97,12 @@ program
     "--lang <code>",
     "Target language for generated wiki content (e.g. \"Chinese\", \"ja\", \"zh-CN\"). Equivalent to setting LLMWIKI_OUTPUT_LANG.",
   )
-  .action(async (options: { review?: boolean; lang?: string }) => {
+  .option("-p, --project <id>", "Target project (uses active project if not specified)")
+  .action(async (options: { review?: boolean; lang?: string; project?: string }) => {
     try {
       applyLanguageOption(options.lang);
       requireProvider();
-      await compileCommand({ review: options.review });
+      await compileCommand({ review: options.review }, options.project);
     } catch (err) {
       console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
       process.exit(1);
@@ -249,11 +260,77 @@ program
   .command("serve")
   .description("Start an MCP server exposing wiki tools and resources over stdio")
   .option("--root <dir>", "Project root directory", process.cwd())
-  .action(async (options: { root: string }) => {
+  .option("--project <id>", "Bind server to a specific project (default: active project)")
+  .action(async (options: { root: string; project?: string }) => {
     try {
       // Per-tool credential checks happen inside the MCP layer so read-only
       // tools and ingest still work without an API key.
-      await startMCPServer({ root: options.root, version });
+      await startMCPServer({ root: options.root, version, projectId: options.project });
+    } catch (err) {
+      console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
+      process.exit(1);
+    }
+  });
+
+const projectCommand = program
+  .command("project")
+  .description("Manage multiple wiki projects");
+
+projectCommand
+  .command("add <id> <name>")
+  .description("Create a new wiki project")
+  .option("-d, --description <text>", "Project description")
+  .action(async (id: string, name: string, options: { description?: string }) => {
+    try {
+      await projectAddCommand(process.cwd(), id, name, options.description);
+    } catch (err) {
+      console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
+      process.exit(1);
+    }
+  });
+
+projectCommand
+  .command("list")
+  .description("List all wiki projects")
+  .action(async () => {
+    try {
+      await projectListCommand(process.cwd());
+    } catch (err) {
+      console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
+      process.exit(1);
+    }
+  });
+
+projectCommand
+  .command("switch <id>")
+  .description("Switch the active project")
+  .action(async (id: string) => {
+    try {
+      await projectSwitchCommand(process.cwd(), id);
+    } catch (err) {
+      console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
+      process.exit(1);
+    }
+  });
+
+projectCommand
+  .command("remove <id>")
+  .description("Remove a project from configuration (does not delete files)")
+  .action(async (id: string) => {
+    try {
+      await projectRemoveCommand(process.cwd(), id);
+    } catch (err) {
+      console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
+      process.exit(1);
+    }
+  });
+
+projectCommand
+  .command("show <id>")
+  .description("Show detailed information about a project")
+  .action(async (id: string) => {
+    try {
+      await projectShowCommand(process.cwd(), id);
     } catch (err) {
       console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
       process.exit(1);

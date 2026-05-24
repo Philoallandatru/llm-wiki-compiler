@@ -21,6 +21,8 @@ interface ServerOptions {
   root: string;
   /** Server version surfaced to MCP clients in the initialize handshake. */
   version: string;
+  /** Optional project ID to bind this server to. If omitted, uses active project. */
+  projectId?: string;
 }
 
 /**
@@ -31,7 +33,7 @@ interface ServerOptions {
  *                  version so the server doesn't need to read package.json).
  */
 export async function startMCPServer(options: ServerOptions): Promise<void> {
-  const { root, version } = options;
+  const { root, version, projectId } = options;
   const server = new McpServer({ name: "llmwiki", version }, {
     instructions:
       "llmwiki is a knowledge compiler. Use ingest_source to add raw sources, " +
@@ -40,7 +42,7 @@ export async function startMCPServer(options: ServerOptions): Promise<void> {
       "wiki_status work without an API key.",
   });
 
-  registerWikiTools(server, root);
+  registerWikiTools(server, root, projectId);
   registerWikiResources(server, root);
 
   const transport = new StdioServerTransport();
