@@ -109,6 +109,32 @@ program
     }
   });
 
+program
+  .command("batch-compile <folder>")
+  .description("Ingest files from a folder in batches, compiling after each batch")
+  .option(
+    "-b, --batch <number>",
+    "Number of files to ingest per batch (default: 5)",
+    (val) => parseInt(val, 10),
+    5
+  )
+  .option("-p, --project <id>", "Target project (uses active project if not specified)")
+  .action(
+    async (
+      folder: string,
+      options: { batch?: number; project?: string }
+    ) => {
+      try {
+        requireProvider();
+        const batchCompileCommand = (await import("./commands/batch-compile.js")).default;
+        await batchCompileCommand(folder, options);
+      } catch (err) {
+        console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
+        process.exit(1);
+      }
+    }
+  );
+
 const reviewCommand = program
   .command("review")
   .description("Inspect and act on pending compile review candidates");
