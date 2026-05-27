@@ -9,12 +9,13 @@
  */
 
 import path from "path";
-import { readdir, stat } from "fs/promises";
+import { stat } from "fs/promises";
 import { buildFrontmatter } from "../utils/markdown.js";
 import { saveSource } from "../utils/source-writer.js";
 import * as output from "../utils/output.js";
 import { parseSessionFile, formatSessionAsMarkdown } from "../adapters/registry.js";
 import type { NormalizedSession } from "../adapters/types.js";
+import { listDirectoryFiles } from "../utils/fs-helpers.js";
 
 /** Result of ingesting a single session file. */
 interface SessionIngestResult {
@@ -76,20 +77,6 @@ export async function ingestSessionFile(filePath: string): Promise<SessionIngest
     title: session.title,
     source: filePath,
   };
-}
-
-/** Collect all files directly inside a directory (non-recursive). */
-async function listDirectoryFiles(dirPath: string): Promise<string[]> {
-  const entries = await readdir(dirPath);
-  const files: string[] = [];
-
-  for (const entry of entries) {
-    const full = path.join(dirPath, entry);
-    const info = await stat(full);
-    if (info.isFile()) files.push(full);
-  }
-
-  return files;
 }
 
 /**
