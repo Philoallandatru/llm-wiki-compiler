@@ -102,6 +102,24 @@ export async function startViewerServer(
 }
 
 /**
+ * Extract a single ViewerSnapshot from a MultiProjectSnapshot.
+ * For single-project mode, returns the active project's snapshot.
+ * For multi-project mode, returns the first project's snapshot (default view).
+ */
+function getActiveSnapshot(snapshot: ViewerSnapshot | MultiProjectSnapshot): ViewerSnapshot {
+  if ('snapshots' in snapshot) {
+    // MultiProjectSnapshot
+    const projectId = snapshot.activeProjectId || snapshot.projects[0]?.id;
+    if (!projectId || !snapshot.snapshots[projectId]) {
+      throw new Error('No active project found in multi-project snapshot');
+    }
+    return snapshot.snapshots[projectId];
+  }
+  // Already a ViewerSnapshot
+  return snapshot;
+}
+
+/**
  * Dispatch a single request. The order matters:
  *   1. Set the mandatory security headers — every response carries them,
  *      including 404s for unknown paths and 403s for bad Host/Origin.
@@ -289,32 +307,34 @@ function normalizeHostnameForOrigin(host: string): string {
  * template surfaces as a 500 `shell_missing` so the rest of the routes
  * stay usable when the asset bundle is incomplete.
  */
-async function handleShell(res: ServerResponse, snapshot: ViewerSnapshot): Promise<void> {
+async function handleShell(res: ServerResponse, snapshot: ViewerSnapshot | MultiProjectSnapshot): Promise<void> {
   const template = await loadShellTemplate(ASSETS_DIR);
   if (template === null) {
     writeJsonError(res, 500, "shell_missing", "Viewer shell template not found on disk.");
     return;
   }
-  const body = substitutePageIndex(template, snapshot.pages);
+  const activeSnapshot = getActiveSnapshot(snapshot);
+  const body = substitutePageIndex(template, activeSnapshot.pages);
   res.statusCode = 200;
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.end(body);
 }
 
 /** `/api/pages` — full envelope with counts, recent pages, and page list. */
-function handleApiPages(res: ServerResponse, snapshot: ViewerSnapshot): void {
+function handleApiPages(res: ServerResponse, snapshot: ViewerSnapshot | MultiProjectSnapshot): void {
+  const activeSnapshot = getActiveSnapshot(snapshot);
   writeJson(res, 200, {
-    project: snapshot.project,
+    project: activeSnapshot.project,
     counts: {
-      concepts: snapshot.counts.concepts,
-      queries: snapshot.counts.queries,
-      sourceFiles: snapshot.counts.sourceFiles,
-      pendingReviews: snapshot.counts.pendingReviews,
+      concepts: activeSnapshot.counts.concepts,
+      queries: activeSnapshot.counts.queries,
+      sourceFiles: activeSnapshot.counts.sourceFiles,
+      pendingReviews: activeSnapshot.counts.pendingReviews,
     },
-    index: { available: snapshot.index.available, href: snapshot.index.href },
-    recentPages: snapshot.recentPages,
-    pages: snapshot.pages.map(pageListRow),
-    updatedAt: snapshot.generatedAt,
+    index: { available: activeSnapshot.index.available, href: activeSnapshot.index.href },
+    recentPages: activeSnapshot.recentPages,
+    pages: activeSnapshot.pages.map(pageListRow),
+    updatedAt: activeSnapshot.generatedAt,
   });
 }
 
@@ -336,33 +356,36 @@ function pageListRow(page: ViewerPage): Record<string, unknown> {
 /** `/api/index` — rendered `wiki/index.md` with resolved outgoing links. */
 function handleApiIndex(
   res: ServerResponse,
-  snapshot: ViewerSnapshot,
+  snapshot: ViewerSnapshot | MultiProjectSnapshot,
   isLoopback: boolean,
 ): void {
-  if (!snapshot.index.available) {
+  const activeSnapshot = getActiveSnapshot(snapshot);
+  if (!activeSnapshot.index.available) {
     writeJsonError(res, 404, "index_unavailable", "wiki/index.md is not present.");
     return;
   }
-  const rendered = tryRenderBody(snapshot.index.body, snapshot, isLoopback);
+  const rendered = tryRenderBody(activeSnapshot.index.body, activeSnapshot, isLoopback);
   if (rendered === null) {
     writeRenderFailed(res);
     return;
   }
   writeJson(res, 200, {
     html: rendered.html,
-    outgoingLinks: snapshot.index.outgoingLinks,
-    generatedAt: snapshot.generatedAt,
+    outgoingLinks: activeSnapshot.index.outgoingLinks,
+    generatedAt: activeSnapshot.generatedAt,
   });
 }
 
 /** Serve the frozen graph adjacency data for the `#/graph` route. */
-function handleApiGraph(res: ServerResponse, snapshot: ViewerSnapshot): void {
-  writeJson(res, 200, snapshot.graph);
+function handleApiGraph(res: ServerResponse, snapshot: ViewerSnapshot | MultiProjectSnapshot): void {
+  const activeSnapshot = getActiveSnapshot(snapshot);
+  writeJson(res, 200, activeSnapshot.graph);
 }
 
 /** `/api/health` — cheap status summary. */
-async function handleApiHealth(res: ServerResponse, snapshot: ViewerSnapshot): Promise<void> {
-  const health = await buildHealthResponse(snapshot);
+async function handleApiHealth(res: ServerResponse, snapshot: ViewerSnapshot | MultiProjectSnapshot): Promise<void> {
+  const activeSnapshot = getActiveSnapshot(snapshot);
+  const health = await buildHealthResponse(activeSnapshot);
   writeJson(res, 200, health);
 }
 
@@ -376,10 +399,11 @@ async function handleApiHealth(res: ServerResponse, snapshot: ViewerSnapshot): P
 function handleApiSearch(
   res: ServerResponse,
   parsedUrl: URL,
-  snapshot: ViewerSnapshot,
+  snapshot: ViewerSnapshot | MultiProjectSnapshot,
 ): void {
   const query = parsedUrl.searchParams.get("q") ?? "";
-  writeJson(res, 200, searchPages(snapshot, query));
+  const activeSnapshot = getActiveSnapshot(snapshot);
+  writeJson(res, 200, searchPages(activeSnapshot, query));
 }
 
 /**
@@ -391,7 +415,7 @@ function handleApiSearch(
 function handleApiPage(
   res: ServerResponse,
   pathname: string,
-  snapshot: ViewerSnapshot,
+  snapshot: ViewerSnapshot | MultiProjectSnapshot,
   isLoopback: boolean,
 ): void {
   const segments = pathname.replace(/^\/api\/page\//, "").split("/");
@@ -405,19 +429,20 @@ function handleApiPage(
     writeJsonError(res, 400, "bad_request", "Invalid directory or slug.");
     return;
   }
-  const page = snapshot.pages.find(
+  const activeSnapshot = getActiveSnapshot(snapshot);
+  const page = activeSnapshot.pages.find(
     (p) => p.pageDirectory === decodedSlug.directory && p.slug === decodedSlug.slug,
   );
   if (!page) {
     writeJsonError(res, 404, "page_not_found", `${decodedSlug.directory}/${decodedSlug.slug}`);
     return;
   }
-  const rendered = tryRenderBody(page.body, snapshot, isLoopback);
+  const rendered = tryRenderBody(page.body, activeSnapshot, isLoopback);
   if (rendered === null) {
     writeRenderFailed(res);
     return;
   }
-  writeJson(res, 200, pagePayload(page, snapshot, rendered.html));
+  writeJson(res, 200, pagePayload(page, activeSnapshot, rendered.html));
 }
 
 /**
