@@ -26,6 +26,9 @@ llmwiki ingest https://some-article.com
 llmwiki compile
 llmwiki query "what is X?"
 llmwiki view --open
+
+# Or batch process multiple files at once
+llmwiki batch-compile ./documents/ --batch 5
 ```
 
 
@@ -247,6 +250,8 @@ Pages include source attribution in frontmatter. Paragraphs are annotated with `
 |---------|-------------|
 | `llmwiki ingest <url\|file>` | Fetch a URL or copy a local file into `sources/` |
 | `llmwiki ingest-session <path>` | Import a Claude/Codex/Cursor session export (single file or whole directory) into `sources/` |
+| `llmwiki batch-compile <folder>` | Ingest files from a folder in batches, compiling after each batch (default batch size: 5) |
+| `llmwiki batch-compile <folder> --batch <n>` | Process files in batches of N files at a time |
 | `llmwiki compile` | Incremental compile: extract concepts, generate wiki pages |
 | `llmwiki compile --review` | Write candidate pages to `.llmwiki/candidates/` instead of `wiki/` so you can review before they land |
 | `llmwiki compile --lang <code>` | Generate wiki content in the given language (e.g. `Chinese`, `ja`, `zh-CN`); also works on `query` |
