@@ -24,7 +24,7 @@ import { ASSETS_DIR, handleAsset } from "./static-assets.js";
 import { renderPageHtml } from "./render.js";
 import { searchPages } from "./search.js";
 import type { PageDirectory } from "../export/types.js";
-import type { ViewerSnapshot, ViewerPage } from "./types.js";
+import type { ViewerSnapshot, ViewerPage, MultiProjectSnapshot } from "./types.js";
 import { assertSafeSlug, PathSafetyError } from "./path-safety.js";
 
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "::1"]);
@@ -62,7 +62,7 @@ interface ViewerServerHandle {
  * carry the OS-assigned port.
  */
 export async function startViewerServer(
-  snapshot: ViewerSnapshot,
+  snapshot: ViewerSnapshot | MultiProjectSnapshot,
   config: ViewerServerConfig,
 ): Promise<ViewerServerHandle> {
   const boundConfig: ViewerServerConfig = { ...config };
@@ -115,7 +115,7 @@ export async function startViewerServer(
 async function handleRequest(
   req: IncomingMessage,
   res: ServerResponse,
-  snapshot: ViewerSnapshot,
+  snapshot: ViewerSnapshot | MultiProjectSnapshot,
   config: ViewerServerConfig,
 ): Promise<void> {
   applySecurityHeaders(res);
@@ -141,7 +141,7 @@ async function routeRegistered(
   req: IncomingMessage,
   res: ServerResponse,
   parsedUrl: URL,
-  snapshot: ViewerSnapshot,
+  snapshot: ViewerSnapshot | MultiProjectSnapshot,
   isLoopback: boolean,
 ): Promise<void> {
   if (parsedUrl.pathname === "/") return handleShell(res, snapshot);

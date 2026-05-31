@@ -13,7 +13,8 @@
 
 import { spawn } from "child_process";
 import { startViewerServer } from "../viewer/server.js";
-import { buildViewerSnapshot } from "../viewer/snapshot.js";
+import { buildViewerSnapshot, buildMultiProjectSnapshot } from "../viewer/snapshot.js";
+import type { ViewerSnapshot, MultiProjectSnapshot } from "../viewer/types.js";
 
 const LOOPBACK_HOST = "127.0.0.1";
 
@@ -39,6 +40,8 @@ interface ViewCommandOptions {
   host?: string;
   allowLan?: boolean;
   open?: boolean;
+  project?: string;
+  all?: boolean;
 }
 
 /**
@@ -50,7 +53,17 @@ interface ViewCommandOptions {
 export default async function viewCommand(options: ViewCommandOptions): Promise<void> {
   const { host, port } = resolveBindConfig(options);
   const root = process.cwd();
-  const snapshot = await buildViewerSnapshot(root);
+
+  let snapshot: ViewerSnapshot | MultiProjectSnapshot;
+
+  if (options.all) {
+    snapshot = await buildMultiProjectSnapshot(root);
+  } else if (options.project) {
+    snapshot = await buildMultiProjectSnapshot(root, [options.project]);
+  } else {
+    snapshot = await buildViewerSnapshot(root);
+  }
+
   const handle = await startViewerServer(snapshot, { host, port });
   const url = buildReadyUrl(handle.host, handle.port);
   process.stdout.write(`Viewer ready at ${url}\n`);

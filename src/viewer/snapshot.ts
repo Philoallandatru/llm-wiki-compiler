@@ -45,12 +45,15 @@ const INDEX_HREF = "/#/index";
  * `readLintCache` in `src/viewer/health.ts` is the sole exception.
  */
 export async function buildViewerSnapshot(root: string): Promise<ViewerSnapshot> {
+  const sourcesDir = path.join(root, SOURCES_DIR);
+  const wikiDir = path.join(root, "wiki");
+
   const [pages, state, pendingReviews, sourceFilenames, index] = await Promise.all([
     collectViewerPages(root),
     readState(root),
     countCandidates(root),
-    listSourceFiles(root),
-    readIndexFile(root),
+    listSourceFiles(sourcesDir),
+    readIndexFile(wikiDir),
   ]);
   const project = buildProject(root);
   // Concept/query counts are derived from `pages`, the already-confined
@@ -140,40 +143,40 @@ function appendCitationWarningsForMarker(
 /** Project title and bare directory name for the dashboard header. */
 function buildProject(root: string): ViewerProject {
   const rootName = path.basename(root);
-  return { title: rootName, rootName };
+  return {
+    id: "default",
+    title: rootName,
+    rootName,
+    sourcesDir: SOURCES_DIR,
+    wikiDir: "wiki",
+  };
 }
 
 /**
- * List filenames directly under `sources/`. Returns an empty array when
+ * List filenames directly under a sources directory. Returns an empty array when
  * the directory is missing. The Slice 4 citation renderer uses this list
  * to mark each chip `data-resolved` without per-request directory scans;
  * `counts.sourceFiles` is the cheap `.length` of the same list.
  *
- * Stricter than "stays under project root": `realpath(<root>/sources)`
- * must equal the literal canonical path `<canonicalRoot>/sources`. A
- * symlinked `sources/` directory — even pointing in-root — returns an
- * empty list, matching the same containment posture the wiki collector
- * uses for `wiki/concepts/` and `wiki/queries/`. Symlinked entries
- * inside the directory are excluded by `Dirent.isFile()` (which returns
- * false for symlinks since `withFileTypes` does not follow them).
+ * Stricter than "stays under project root": `realpath(sourcesDir)`
+ * must equal the literal canonical path. A symlinked sources directory —
+ * even pointing in-root — returns an empty list, matching the same
+ * containment posture the wiki collector uses for `wiki/concepts/` and
+ * `wiki/queries/`. Symlinked entries inside the directory are excluded
+ * by `Dirent.isFile()` (which returns false for symlinks since
+ * `withFileTypes` does not follow them).
+ *
+ * @param sourcesDir - Absolute path to sources directory
  */
-async function listSourceFiles(root: string): Promise<string[]> {
-  let canonicalRoot: string;
+async function listSourceFiles(sourcesDir: string): Promise<string[]> {
+  let expectedDir: string;
   try {
-    canonicalRoot = await realpath(root);
+    expectedDir = await realpath(sourcesDir);
   } catch {
     return [];
   }
-  const expectedDir = path.join(canonicalRoot, SOURCES_DIR);
-  let realDir: string;
   try {
-    realDir = await realpath(expectedDir);
-  } catch {
-    return [];
-  }
-  if (realDir !== expectedDir) return [];
-  try {
-    const entries = await readdir(realDir, { withFileTypes: true });
+    const entries = await readdir(expectedDir, { withFileTypes: true });
     return entries.filter((e) => e.isFile()).map((e) => e.name);
   } catch {
     return [];
@@ -185,22 +188,18 @@ async function listSourceFiles(root: string): Promise<string[]> {
  * projects compile without an index page, and the viewer renders an
  * "index unavailable" placeholder for the `/#/index` route.
  *
- * Stricter than "stays under project root": `realpath(wiki/index.md)`
- * must equal the literal canonical path `<root>/wiki/index.md`. A
- * symlinked `wiki/index.md` is treated as unavailable, even when the
- * link target also lives inside the project — pointing the index at
- * (say) `<root>/README.md` would let the index endpoint render
- * content that has no business being the project's compiled index.
- * A symlinked `wiki/` directory is dropped by the same equality check.
+ * Stricter than "stays under project root": `realpath(wikiDir/index.md)`
+ * must equal the literal canonical path. A symlinked `index.md` is
+ * treated as unavailable, even when the link target also lives inside
+ * the project — pointing the index at (say) `<root>/README.md` would
+ * let the index endpoint render content that has no business being the
+ * project's compiled index. A symlinked wiki directory is dropped by
+ * the same equality check.
+ *
+ * @param wikiDir - Absolute path to wiki directory
  */
-async function readIndexFile(root: string): Promise<{ available: boolean; body: string }> {
-  let canonicalRoot: string;
-  try {
-    canonicalRoot = await realpath(root);
-  } catch {
-    return { available: false, body: "" };
-  }
-  const expectedIndex = path.join(canonicalRoot, "wiki", "index.md");
+async function readIndexFile(wikiDir: string): Promise<{ available: boolean; body: string }> {
+  const expectedIndex = path.join(wikiDir, "index.md");
   let resolved: string;
   try {
     resolved = await realpath(expectedIndex);
@@ -236,3 +235,107 @@ function buildRecentPages(pages: ViewerPage[]): ViewerRecentPage[] {
   return rows.slice(0, RECENT_PAGES_LIMIT);
 }
 
+/**
+ * Build a snapshot for a specific project with custom paths.
+ * Used by multi-project viewer to build snapshots for each project.
+ */
+export async function buildProjectSnapshot(
+  root: string,
+  projectConfig: { id: string; name: string; description?: string; sourcesDir: string; wikiDir: string }
+): Promise<ViewerSnapshot> {
+  const sourcesDir = path.join(root, projectConfig.sourcesDir);
+  const wikiDir = path.join(root, projectConfig.wikiDir);
+  const llmwikiDir = path.join(root, ".llmwiki");
+
+  const [pages, state, pendingReviews, sourceFilenames, index] = await Promise.all([
+    collectViewerPages(root),
+    readState(llmwikiDir),
+    countCandidates(llmwikiDir),
+    listSourceFiles(sourcesDir),
+    readIndexFile(wikiDir),
+  ]);
+
+  const project: ViewerProject = {
+    id: projectConfig.id,
+    title: projectConfig.name,
+    rootName: path.basename(root),
+    description: projectConfig.description,
+    sourcesDir: projectConfig.sourcesDir,
+    wikiDir: projectConfig.wikiDir,
+  };
+
+  const counts: ViewerCounts = {
+    concepts: pages.filter((p) => p.pageDirectory === "concepts").length,
+    queries: pages.filter((p) => p.pageDirectory === "queries").length,
+    sourceFiles: sourceFilenames.length,
+    pendingReviews,
+    compiledSources: Object.keys(state.sources).length,
+  };
+
+  const fullIndex: ViewerIndex = {
+    available: index.available,
+    href: INDEX_HREF,
+    body: index.body,
+    outgoingLinks: resolveBareSlugList(extractWikilinkSlugs(index.body), pages),
+  };
+
+  const sourceFileSet = new Set(sourceFilenames);
+  const annotatedPages = pages.map((page) => annotateCitationWarnings(page, sourceFileSet));
+  const graph = buildGraphData(annotatedPages);
+
+  return {
+    root,
+    generatedAt: new Date().toISOString(),
+    project,
+    counts,
+    index: fullIndex,
+    recentPages: buildRecentPages(annotatedPages),
+    pages: annotatedPages,
+    sourceFilenames,
+    graph,
+  };
+}
+
+/**
+ * Build a multi-project snapshot for viewing multiple projects.
+ * @param root - Project root directory
+ * @param projectIds - Optional array of project IDs to include (undefined = all projects)
+ */
+export async function buildMultiProjectSnapshot(
+  root: string,
+  projectIds?: string[]
+): Promise<import("./types.js").MultiProjectSnapshot> {
+  const { readProjectsConfig } = await import("../utils/project-config.js");
+  const config = await readProjectsConfig(root);
+
+  const targetProjects = projectIds
+    ? projectIds.map((id) => config.projects[id]).filter(Boolean)
+    : Object.values(config.projects);
+
+  if (targetProjects.length === 0) {
+    throw new Error("No projects found to display");
+  }
+
+  const snapshots: Record<string, ViewerSnapshot> = {};
+  await Promise.all(
+    targetProjects.map(async (project) => {
+      snapshots[project.id] = await buildProjectSnapshot(root, project);
+    })
+  );
+
+  return {
+    root,
+    generatedAt: new Date().toISOString(),
+    mode: projectIds && projectIds.length === 1 ? "single" : "all",
+    activeProjectId: projectIds?.[0],
+    projects: targetProjects.map((p) => ({
+      id: p.id,
+      title: p.name,
+      rootName: path.basename(root),
+      description: p.description,
+      sourcesDir: p.sourcesDir,
+      wikiDir: p.wikiDir,
+    })),
+    snapshots,
+  };
+}

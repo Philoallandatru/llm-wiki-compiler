@@ -72,12 +72,21 @@ program
 
 program
   .command("view")
-  .description("Start a local read-only web viewer for the current wiki project")
+  .description("Start a local read-only web viewer for wiki projects")
   .option("--port <port>", "Port to bind (default 0 — OS-assigned)")
   .option("--host <host>", "Host to bind (requires --allow-lan; default 127.0.0.1)")
   .option("--allow-lan", "Bind beyond loopback (requires --host); off by default for privacy")
   .option("--open", "Open the viewer in the default browser after startup")
-  .action(async (options: { port?: string; host?: string; allowLan?: boolean; open?: boolean }) => {
+  .option("-p, --project <id>", "View a specific project (default: active project)")
+  .option("--all", "View all projects with project switcher")
+  .action(async (options: {
+    port?: string;
+    host?: string;
+    allowLan?: boolean;
+    open?: boolean;
+    project?: string;
+    all?: boolean;
+  }) => {
     try {
       await viewCommand(options);
     } catch (err) {
