@@ -164,6 +164,7 @@ async function routeRegistered(
 ): Promise<void> {
   if (parsedUrl.pathname === "/") return handleShell(res, snapshot);
   if (parsedUrl.pathname.startsWith("/assets/")) return handleAsset(res, parsedUrl.pathname);
+  if (parsedUrl.pathname === "/api/projects") return handleApiProjects(res, snapshot);
   if (parsedUrl.pathname === "/api/pages") return handleApiPages(res, snapshot);
   if (parsedUrl.pathname === "/api/index") return handleApiIndex(res, snapshot, isLoopback);
   if (parsedUrl.pathname === "/api/health") return handleApiHealth(res, snapshot);
@@ -184,6 +185,7 @@ async function routeRegistered(
  */
 const REGISTERED_EXACT_PATHS: ReadonlySet<string> = new Set([
   "/",
+  "/api/projects",
   "/api/pages",
   "/api/index",
   "/api/health",
@@ -318,6 +320,25 @@ async function handleShell(res: ServerResponse, snapshot: ViewerSnapshot | Multi
   res.statusCode = 200;
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.end(body);
+}
+
+/** `/api/projects` — project list and metadata for multi-project mode. */
+function handleApiProjects(res: ServerResponse, snapshot: ViewerSnapshot | MultiProjectSnapshot): void {
+  if ('snapshots' in snapshot) {
+    // MultiProjectSnapshot - return project list
+    writeJson(res, 200, {
+      mode: snapshot.mode,
+      activeProjectId: snapshot.activeProjectId,
+      projects: snapshot.projects,
+    });
+  } else {
+    // Single ViewerSnapshot - return single project info
+    writeJson(res, 200, {
+      mode: 'single',
+      activeProjectId: snapshot.project.id,
+      projects: [snapshot.project],
+    });
+  }
 }
 
 /** `/api/pages` — full envelope with counts, recent pages, and page list. */
