@@ -71,10 +71,18 @@ export interface ViewerPage {
  * Lightweight project metadata for the dashboard.
  */
 export interface ViewerProject {
+  /** Project identifier (slug). */
+  id: string;
   /** Display title — preferred from package.json or directory name. */
   title: string;
   /** Bare directory name of the project root. */
   rootName: string;
+  /** Optional project description. */
+  description?: string;
+  /** Relative path to sources directory. */
+  sourcesDir: string;
+  /** Relative path to wiki output directory. */
+  wikiDir: string;
 }
 
 /**
@@ -175,4 +183,23 @@ export interface ViewerSnapshot {
   sourceFilenames: string[];
   /** Adjacency data for the `#/graph` route. Built once at snapshot time. */
   graph: GraphData;
+}
+
+/**
+ * Multi-project snapshot for viewing multiple projects in one viewer instance.
+ * Used when --all or --project flags are specified.
+ */
+export interface MultiProjectSnapshot {
+  /** Absolute project root. */
+  root: string;
+  /** ISO-8601 timestamp the snapshot was built at. */
+  generatedAt: string;
+  /** Viewer mode: single project or all projects. */
+  mode: 'single' | 'all';
+  /** Active project ID (for single project mode). */
+  activeProjectId?: string;
+  /** List of all projects in this snapshot. */
+  projects: ViewerProject[];
+  /** Map of project ID to project snapshot. */
+  snapshots: Record<string, ViewerSnapshot>;
 }
