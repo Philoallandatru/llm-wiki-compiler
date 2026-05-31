@@ -209,13 +209,22 @@ async function collectFromDir(
  * silently excluded. Pages are returned in filesystem order within each
  * directory, with concepts before queries; callers that need a stable
  * total order should sort.
+ *
+ * @param rootOrWikiDir - Project root directory or wiki directory path.
+ *   If the path ends with 'wiki', treats it as a wiki directory.
+ *   Otherwise, treats it as project root and appends 'wiki/'.
  */
-export async function collectRawWikiPages(root: string): Promise<RawWikiPage[]> {
-  const canonicalRoot = await safeRealpath(root);
-  if (!canonicalRoot) return [];
+export async function collectRawWikiPages(rootOrWikiDir: string): Promise<RawWikiPage[]> {
+  const canonicalPath = await safeRealpath(rootOrWikiDir);
+  if (!canonicalPath) return [];
+
+  // Determine if this is a wiki directory or project root
+  const isWikiDir = canonicalPath.endsWith('wiki') || canonicalPath.endsWith('wiki/') || canonicalPath.endsWith('wiki\\');
+  const wikiRoot = isWikiDir ? canonicalPath : path.join(canonicalPath, 'wiki');
+
   const [concepts, queries] = await Promise.all([
-    collectFromDir(canonicalRoot, "concepts", CONCEPTS_DIR),
-    collectFromDir(canonicalRoot, "queries", QUERIES_DIR),
+    collectFromDir(wikiRoot, "concepts", "concepts"),
+    collectFromDir(wikiRoot, "queries", "queries"),
   ]);
   return [...concepts, ...queries];
 }

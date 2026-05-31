@@ -27,9 +27,11 @@ type PageIndexEntry = { id: PageId; pageDirectory: ViewerPage["pageDirectory"]; 
  * carries its namespaced id, resolved outgoing links, citations, and any
  * `ViewerWarning` objects derived from the underlying `parseStatus` flags.
  * Returns pages in collector order (concepts then queries).
+ *
+ * @param rootOrWikiDir - Project root directory or wiki directory path
  */
-export async function collectViewerPages(root: string): Promise<ViewerPage[]> {
-  const raw = await collectRawWikiPages(root);
+export async function collectViewerPages(rootOrWikiDir: string): Promise<ViewerPage[]> {
+  const raw = await collectRawWikiPages(rootOrWikiDir);
   return decoratePages(raw);
 }
 

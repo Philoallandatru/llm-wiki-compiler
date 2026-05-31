@@ -248,7 +248,7 @@ export async function buildProjectSnapshot(
   const llmwikiDir = path.join(root, ".llmwiki");
 
   const [pages, state, pendingReviews, sourceFilenames, index] = await Promise.all([
-    collectViewerPages(root),
+    collectViewerPages(wikiDir),
     readState(llmwikiDir),
     countCandidates(llmwikiDir),
     listSourceFiles(sourcesDir),
