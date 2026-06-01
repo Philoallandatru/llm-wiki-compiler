@@ -17,6 +17,7 @@ import {
   loadCandidateOrFail,
   loadCandidateUnderLockOrFail,
 } from "../compiler/candidates.js";
+import { realpath } from "fs/promises";
 import { acquireLock, releaseLock } from "../utils/lock.js";
 import * as output from "../utils/output.js";
 
@@ -36,7 +37,7 @@ export async function runReviewUnderLock(
   id: string,
   underLock: (root: string, id: string) => Promise<void>,
 ): Promise<void> {
-  const root = process.cwd();
+  const root = await realpath(process.cwd());
 
   // Fast-fail: surface a clear error for obviously missing ids.
   // The authoritative check happens under the lock via loadCandidateUnderLockOrFail.

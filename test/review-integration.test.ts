@@ -140,6 +140,8 @@ describe("review integration tests", () => {
     const cwd = await makeTempWorkspace("compile-review-no-key");
     try {
       const result = await runCLI(["compile", "--review"], cwd, {
+        LLMWIKI_PROVIDER: "anthropic",
+        LLMWIKI_CLAUDE_SETTINGS_PATH: path.join(cwd, "missing-settings.json"),
         ANTHROPIC_API_KEY: "",
         ANTHROPIC_AUTH_TOKEN: "",
       });

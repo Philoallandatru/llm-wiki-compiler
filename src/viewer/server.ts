@@ -162,21 +162,51 @@ async function routeRegistered(
   snapshot: ViewerSnapshot | MultiProjectSnapshot,
   isLoopback: boolean,
 ): Promise<void> {
-  if (parsedUrl.pathname === "/") return handleShell(res, snapshot);
-  if (parsedUrl.pathname.startsWith("/assets/")) return handleAsset(res, parsedUrl.pathname);
-  if (parsedUrl.pathname === "/api/projects") return handleApiProjects(res, snapshot);
-  if (parsedUrl.pathname === "/api/pages") return handleApiPages(res, snapshot);
-  if (parsedUrl.pathname === "/api/index") return handleApiIndex(res, snapshot, isLoopback);
-  if (parsedUrl.pathname === "/api/health") return handleApiHealth(res, snapshot);
-  if (parsedUrl.pathname === "/api/search") return handleApiSearch(res, parsedUrl, snapshot);
-  if (parsedUrl.pathname === "/api/graph") return handleApiGraph(res, snapshot);
-  if (parsedUrl.pathname.startsWith("/api/page/")) {
-    return handleApiPage(res, parsedUrl.pathname, snapshot, isLoopback);
-  }
+  const context = { res, parsedUrl, snapshot, isLoopback };
+  const handler = resolveRouteHandler(parsedUrl.pathname);
+  if (handler) return handler(context);
   // Unreachable: `isRouteRegistered` is the gate, and every branch
   // there has a matching dispatch above. If it ever fires, the two
   // functions have drifted — fail loudly rather than silently 404.
   throw new Error(`route registration drift: no handler for ${parsedUrl.pathname}`);
+}
+
+/** Handler context shared by exact and prefix route dispatchers. */
+interface RouteContext {
+  res: ServerResponse;
+  parsedUrl: URL;
+  snapshot: ViewerSnapshot | MultiProjectSnapshot;
+  isLoopback: boolean;
+}
+
+/** A registered route handler. */
+type RouteHandler = (context: RouteContext) => Promise<void> | void;
+
+/** Exact-path route dispatch table. */
+const EXACT_ROUTE_HANDLERS: Readonly<Record<string, RouteHandler>> = {
+  "/": ({ res, snapshot }) => handleShell(res, snapshot),
+  "/api/projects": ({ res, snapshot }) => handleApiProjects(res, snapshot),
+  "/api/pages": ({ res, snapshot }) => handleApiPages(res, snapshot),
+  "/api/index": ({ res, snapshot, isLoopback }) =>
+    handleApiIndex(res, snapshot, isLoopback),
+  "/api/health": ({ res, snapshot }) => handleApiHealth(res, snapshot),
+  "/api/search": ({ res, parsedUrl, snapshot }) =>
+    handleApiSearch(res, parsedUrl, snapshot),
+  "/api/graph": ({ res, snapshot }) => handleApiGraph(res, snapshot),
+};
+
+/** Resolve the handler for a registered route path. */
+function resolveRouteHandler(pathname: string): RouteHandler | null {
+  const exactHandler = EXACT_ROUTE_HANDLERS[pathname];
+  if (exactHandler) return exactHandler;
+  if (pathname.startsWith("/assets/")) {
+    return ({ res }) => handleAsset(res, pathname);
+  }
+  if (pathname.startsWith("/api/page/")) {
+    return ({ res, snapshot, isLoopback }) =>
+      handleApiPage(res, pathname, snapshot, isLoopback);
+  }
+  return null;
 }
 
 /**

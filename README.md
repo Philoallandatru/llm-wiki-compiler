@@ -246,6 +246,12 @@ Pages include source attribution in frontmatter. Paragraphs are annotated with `
 
 ## Commands
 
+User manual: [docs/USER_MANUAL.md](docs/USER_MANUAL.md)
+
+Full parameter reference: [docs/CLI_REFERENCE.md](docs/CLI_REFERENCE.md)
+
+CLI test report: [docs/CLI_TEST_REPORT.md](docs/CLI_TEST_REPORT.md)
+
 | Command | What it does |
 |---------|-------------|
 | `llmwiki ingest <url\|file>` | Fetch a URL or copy a local file into `sources/` |

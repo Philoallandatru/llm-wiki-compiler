@@ -27,6 +27,7 @@ import {
   EMBEDDINGS_FILE,
   EMBEDDING_TOP_K,
   EMBEDDING_MODELS,
+  MINIMAX_EMBEDDING_MODEL,
 } from "./constants.js";
 import { hashChunkText, splitIntoChunks } from "./retrieval.js";
 import * as output from "./output.js";
@@ -281,7 +282,22 @@ export function resolveEmbeddingModel(): string {
   if (configuredModel && (providerName === "openai" || providerName === "ollama")) {
     return configuredModel;
   }
+  if (providerName === "openai" && hasMiniMaxEmbeddingURL()) {
+    return MINIMAX_EMBEDDING_MODEL;
+  }
   return EMBEDDING_MODELS[providerName] ?? EMBEDDING_MODELS.anthropic;
+}
+
+/** Check the effective OpenAI-compatible embeddings URL for MiniMax. */
+function hasMiniMaxEmbeddingURL(): boolean {
+  return isMiniMaxBaseURL(
+    process.env.OPENAI_EMBEDDINGS_BASE_URL ?? process.env.OPENAI_BASE_URL,
+  );
+}
+
+/** Return true when an OpenAI-compatible chat URL points at MiniMax. */
+function isMiniMaxBaseURL(baseURL?: string): boolean {
+  return Boolean(baseURL && /minimax/i.test(baseURL));
 }
 
 /** Merge fresh embeddings into an existing store, dropping slugs not in liveSlugs. */

@@ -13,6 +13,7 @@ import ingestCommand from "./commands/ingest.js";
 import ingestSessionCommand from "./commands/ingest-session.js";
 import viewCommand from "./commands/view.js";
 import compileCommand from "./commands/compile.js";
+import batchCompileCommand from "./commands/batch-compile.js";
 import queryCommand from "./commands/query.js";
 import watchCommand from "./commands/watch.js";
 import lintCommand from "./commands/lint.js";
@@ -135,7 +136,6 @@ program
     ) => {
       try {
         requireProvider();
-        const batchCompileCommand = (await import("./commands/batch-compile.js")).default;
         await batchCompileCommand(folder, options);
       } catch (err) {
         console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);

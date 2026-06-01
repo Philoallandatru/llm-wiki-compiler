@@ -59,6 +59,8 @@ afterEach(() => {
   delete process.env.LLMWIKI_PROVIDER;
   delete process.env.LLMWIKI_EMBEDDING_MODEL;
   delete process.env.OPENAI_API_KEY;
+  delete process.env.OPENAI_BASE_URL;
+  delete process.env.OPENAI_EMBEDDINGS_BASE_URL;
   resetStaleEmbeddingWarnings();
   vi.restoreAllMocks();
 });
@@ -164,6 +166,21 @@ describe("embedding model selection", () => {
     process.env.LLMWIKI_PROVIDER = "openai";
     process.env.LLMWIKI_EMBEDDING_MODEL = "local-embed";
     expect(resolveEmbeddingModel()).toBe("local-embed");
+  });
+
+  it("uses MiniMax's embedding model when OpenAI provider points at MiniMax", () => {
+    process.env.LLMWIKI_PROVIDER = "openai";
+    process.env.OPENAI_BASE_URL = "https://api.minimax.chat/v1";
+
+    expect(resolveEmbeddingModel()).toBe("embo-01");
+  });
+
+  it("uses MiniMax's embedding model when only the embeddings URL points at MiniMax", () => {
+    process.env.LLMWIKI_PROVIDER = "openai";
+    process.env.OPENAI_BASE_URL = "https://api.openai.com/v1";
+    process.env.OPENAI_EMBEDDINGS_BASE_URL = "https://api.minimax.chat/v1";
+
+    expect(resolveEmbeddingModel()).toBe("embo-01");
   });
 
   it("ignores LLMWIKI_EMBEDDING_MODEL when Anthropic is active", () => {

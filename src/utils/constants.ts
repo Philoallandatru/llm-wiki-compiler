@@ -126,3 +126,6 @@ export const EMBEDDING_MODELS: Record<string, string> = {
   openai: "text-embedding-3-small",
   ollama: "nomic-embed-text",
 };
+
+/** Default embedding model for MiniMax's non-OpenAI-compatible endpoint. */
+export const MINIMAX_EMBEDDING_MODEL = "embo-01";

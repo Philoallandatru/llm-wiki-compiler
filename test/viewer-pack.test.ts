@@ -10,10 +10,10 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { execFile } from "child_process";
+import { exec as execCommand } from "child_process";
 import { promisify } from "util";
 
-const exec = promisify(execFile);
+const exec = promisify(execCommand);
 
 const REQUIRED_ASSETS = [
   "dist/viewer/assets/index.html",
@@ -37,7 +37,7 @@ interface PackReport {
 
 describe("npm pack — viewer asset inclusion", () => {
   it("ships every dist/viewer/assets/* file the server reads at runtime", async () => {
-    const { stdout } = await exec("npm", ["pack", "--dry-run", "--json"], {
+    const { stdout } = await exec("npm pack --dry-run --json", {
       cwd: process.cwd(),
       maxBuffer: 4 * 1024 * 1024,
     });
