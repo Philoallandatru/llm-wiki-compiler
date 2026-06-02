@@ -41,6 +41,7 @@ interface BatchCompileSetup {
 interface BatchTotals {
   ingested: number;
   failed: number;
+  compiled: number;
 }
 
 /**
@@ -124,7 +125,7 @@ async function processBatch(
 
   if (ingestResult.succeeded === 0) {
     reportSkippedCompile(batchNum, ingestResult.failed);
-    return { ingested: 0, failed: ingestResult.failed };
+    return { ingested: 0, failed: ingestResult.failed, compiled: 0 };
   }
 
   output.status(
@@ -135,7 +136,7 @@ async function processBatch(
   );
   await compileBatch(batchNum, projectId);
 
-  return { ingested: ingestResult.succeeded, failed: ingestResult.failed };
+  return { ingested: ingestResult.succeeded, failed: ingestResult.failed, compiled: 1 };
 }
 
 /** Report when a batch has no successfully imported files. */
@@ -146,7 +147,7 @@ function reportSkippedCompile(batchNum: number, failed: number): void {
   );
 }
 
-/** Compile after a successful batch while keeping later batches moving on error. */
+/** Compile after a successful batch and fail fast if compilation fails. */
 async function compileBatch(batchNum: number, projectId: string): Promise<void> {
   output.status("*", output.info("Compiling..."));
 
@@ -156,6 +157,10 @@ async function compileBatch(batchNum: number, projectId: string): Promise<void> 
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     output.status("!", output.error(`Batch ${batchNum} compile failed: ${message}`));
+    throw new Error(
+      `Batch ${batchNum} failed after ingest. ` +
+        `Fix the compile error, then run \`llmwiki compile\` to process already-ingested files.`,
+    );
   }
 }
 
@@ -212,7 +217,7 @@ function reportBatchPlan(setup: BatchCompileSetup): void {
 
 /** Process every batch and return aggregate ingest totals. */
 async function processBatches(setup: BatchCompileSetup): Promise<BatchTotals> {
-  const totals: BatchTotals = { ingested: 0, failed: 0 };
+  const totals: BatchTotals = { ingested: 0, failed: 0, compiled: 0 };
 
   for (let i = 0; i < setup.batches.length; i++) {
     const result = await processBatch(
@@ -224,6 +229,7 @@ async function processBatches(setup: BatchCompileSetup): Promise<BatchTotals> {
     );
     totals.ingested += result.ingested;
     totals.failed += result.failed;
+    totals.compiled += result.compiled;
     printBatchGap(i, setup.batches.length);
   }
 
@@ -243,7 +249,7 @@ function reportBatchSummary(setup: BatchCompileSetup, totals: BatchTotals): void
   output.status(
     ">",
     output.dim(
-      `Total: ${totals.ingested} ingested, ${totals.failed} failed, ${setup.batches.length} batch(es) processed`,
+      `Total: ${totals.ingested} ingested, ${totals.failed} failed, ${totals.compiled}/${setup.batches.length} batch(es) compiled`,
     ),
   );
 
