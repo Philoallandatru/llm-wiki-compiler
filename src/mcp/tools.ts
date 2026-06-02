@@ -159,6 +159,11 @@ async function getProjectPaths(root: string, projectId?: string) {
   return { project, paths };
 }
 
+/** Resolve a project path that may already be absolute. */
+function toAbsoluteProjectPath(root: string, projectPath: string): string {
+  return path.isAbsolute(projectPath) ? projectPath : path.join(root, projectPath);
+}
+
 function registerSearchTool(server: McpServer, root: string, projectId?: string): void {
   server.registerTool(
     "search_pages",
@@ -188,7 +193,7 @@ function registerSearchTool(server: McpServer, root: string, projectId?: string)
  */
 async function pickSearchSlugs(root: string, question: string, projectId?: string): Promise<string[]> {
   const { paths } = await getProjectPaths(root, projectId);
-  const wikiDir = path.join(root, paths.wikiDir);
+  const wikiDir = toAbsoluteProjectPath(root, paths.wikiDir);
 
   try {
     const chunks = await findRelevantChunks(root, question, CHUNK_TOP_K);
@@ -279,9 +284,9 @@ function registerStatusTool(server: McpServer, root: string, projectId?: string)
 async function collectStatus(root: string, projectId?: string): Promise<WikiStatus> {
   const { paths } = await getProjectPaths(root, projectId);
 
-  const conceptsDir = path.join(root, paths.conceptsDir);
-  const queriesDir = path.join(root, paths.queriesDir);
-  const sourcesDir = path.join(root, paths.sourcesDir);
+  const conceptsDir = toAbsoluteProjectPath(root, paths.conceptsDir);
+  const queriesDir = toAbsoluteProjectPath(root, paths.queriesDir);
+  const sourcesDir = toAbsoluteProjectPath(root, paths.sourcesDir);
 
   const concepts = await collectPageSummaries(conceptsDir);
   const queries = await collectPageSummaries(queriesDir);
@@ -319,7 +324,7 @@ interface WikiStatus {
 /** Find concept slugs whose pages are flagged as orphaned. */
 async function findOrphanedSlugs(root: string, projectId?: string): Promise<string[]> {
   const { paths } = await getProjectPaths(root, projectId);
-  const conceptsDir = path.join(root, paths.conceptsDir);
+  const conceptsDir = toAbsoluteProjectPath(root, paths.conceptsDir);
   const scanned = await scanWikiPages(conceptsDir);
   return scanned.filter(({ meta }) => meta.orphaned).map(({ slug }) => slug);
 }
@@ -342,8 +347,8 @@ export async function readPage(root: string, slug: string, projectId?: string): 
   const { paths } = await getProjectPaths(root, projectId);
 
   const pageDirs = [
-    path.join(root, paths.conceptsDir),
-    path.join(root, paths.queriesDir),
+    toAbsoluteProjectPath(root, paths.conceptsDir),
+    toAbsoluteProjectPath(root, paths.queriesDir),
   ];
 
   for (const dir of pageDirs) {

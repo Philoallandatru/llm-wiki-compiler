@@ -7,7 +7,11 @@
 
 import OpenAI from "openai";
 import type { LLMProvider, LLMMessage, LLMTool } from "../utils/provider.js";
-import { EMBEDDING_MODELS, OPENAI_DEFAULT_TIMEOUT_MS } from "../utils/constants.js";
+import {
+  EMBEDDING_MODELS,
+  MINIMAX_EMBEDDING_MODEL,
+  OPENAI_DEFAULT_TIMEOUT_MS,
+} from "../utils/constants.js";
 
 /** Construction options for an OpenAI-compatible provider. */
 interface OpenAIProviderOptions {
@@ -22,6 +26,15 @@ interface OpenAIProviderOptions {
    * raises the default and reads LLMWIKI_REQUEST_TIMEOUT_MS / OLLAMA_TIMEOUT_MS.
    */
   timeoutMs?: number;
+}
+
+/** Shape returned by MiniMax's embeddings endpoint. */
+interface MiniMaxEmbeddingResponse {
+  vectors?: number[][];
+  base_resp?: {
+    status_code?: number;
+    status_msg?: string;
+  };
 }
 
 /**
@@ -62,6 +75,10 @@ export class OpenAIProvider implements LLMProvider {
   protected readonly embeddingsClient: OpenAI;
   protected readonly model: string;
   protected readonly configuredEmbeddingModel?: string;
+  protected readonly embeddingsBaseURL?: string;
+  protected readonly usesMiniMaxEmbeddings: boolean;
+  private readonly apiKey: string;
+  private readonly timeoutMs: number;
 
   constructor(model: string, options: OpenAIProviderOptions = {}) {
     this.model = model;
@@ -69,10 +86,15 @@ export class OpenAIProvider implements LLMProvider {
     // The OpenAI SDK validates OPENAI_API_KEY at construction time.
     // Pass the key explicitly so the provider controls when validation happens.
     const resolvedKey = options.apiKey ?? process.env.OPENAI_API_KEY ?? "";
+    this.apiKey = resolvedKey;
     const timeout = options.timeoutMs ?? resolveOpenAITimeoutMs() ?? OPENAI_DEFAULT_TIMEOUT_MS;
+    this.timeoutMs = timeout;
+    const baseURL = options.baseURL ?? null;
+    this.embeddingsBaseURL = options.embeddingsBaseURL ?? options.baseURL;
+    this.usesMiniMaxEmbeddings = isMiniMaxBaseURL(this.embeddingsBaseURL);
     this.client = new OpenAI({
       apiKey: resolvedKey,
-      baseURL: options.baseURL ?? null,
+      baseURL,
       timeout,
     });
     this.embeddingsClient = options.embeddingsBaseURL
@@ -147,6 +169,10 @@ export class OpenAIProvider implements LLMProvider {
    * Subclasses (e.g. Ollama) override embeddingModel() to pick a different model.
    */
   async embed(text: string): Promise<number[]> {
+    if (this.usesMiniMaxEmbeddings) {
+      return this.embedWithMiniMax(text);
+    }
+
     const response = await this.embeddingsClient.embeddings.create({
       model: this.embeddingModel(),
       input: text,
@@ -161,6 +187,52 @@ export class OpenAIProvider implements LLMProvider {
 
   /** Default embedding model for this provider. Subclasses may override. */
   protected embeddingModel(): string {
+    if (this.usesMiniMaxEmbeddings && !this.configuredEmbeddingModel) {
+      return MINIMAX_EMBEDDING_MODEL;
+    }
     return this.configuredEmbeddingModel ?? EMBEDDING_MODELS.openai;
   }
+
+  /** Produce one vector through MiniMax's `texts`/`vectors` embeddings API. */
+  protected async embedWithMiniMax(text: string): Promise<number[]> {
+    const url = `${this.embeddingsBaseURL?.replace(/\/$/, "")}/embeddings`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: this.embeddingHeaders(),
+      signal: AbortSignal.timeout(this.timeoutMs),
+      body: JSON.stringify({
+        model: this.embeddingModel(),
+        texts: [text],
+        type: "db",
+      }),
+    });
+    const body = (await response.json()) as MiniMaxEmbeddingResponse;
+    return parseMiniMaxVector(response.status, body);
+  }
+
+  /** Headers for raw embedding fetch calls. */
+  private embeddingHeaders(): Record<string, string> {
+    return {
+      "content-type": "application/json",
+      authorization: `Bearer ${this.apiKey}`,
+    };
+  }
+}
+
+/** Return true when an OpenAI-compatible chat URL points at MiniMax. */
+function isMiniMaxBaseURL(baseURL?: string): boolean {
+  return Boolean(baseURL && /minimax/i.test(baseURL));
+}
+
+/** Extract the first vector from MiniMax's response or throw a clear error. */
+function parseMiniMaxVector(status: number, body: MiniMaxEmbeddingResponse): number[] {
+  const vector = body.vectors?.[0];
+  if (Array.isArray(vector)) return vector;
+
+  const statusCode = body.base_resp?.status_code;
+  const statusMsg = body.base_resp?.status_msg;
+  throw new Error(
+    `MiniMax embeddings response did not include a vector ` +
+      `(HTTP ${status}, code ${statusCode ?? "unknown"}: ${statusMsg ?? "unknown error"}).`,
+  );
 }

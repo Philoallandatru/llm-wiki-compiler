@@ -15,7 +15,7 @@
  *   - `readdir(sources/)` for the cheap source-file count
  */
 
-import { readdir, readFile, realpath } from "fs/promises";
+import { lstat, readdir, readFile } from "fs/promises";
 import path from "path";
 import { SOURCES_DIR } from "../utils/constants.js";
 import { countCandidates } from "../compiler/candidates.js";
@@ -37,6 +37,17 @@ import type {
 const RECENT_PAGES_LIMIT = 8;
 const INDEX_HREF = "/#/index";
 
+/** Inputs that are already collected and ready to become a viewer snapshot. */
+interface SnapshotParts {
+  root: string;
+  project: ViewerProject;
+  pages: ViewerPage[];
+  stateSources: Record<string, unknown>;
+  pendingReviews: number;
+  sourceFilenames: string[];
+  index: { available: boolean; body: string };
+}
+
 /**
  * Build the immutable startup snapshot for a project root. Reads pages,
  * counts, source state, candidates, and the optional `wiki/index.md`
@@ -55,36 +66,48 @@ export async function buildViewerSnapshot(root: string): Promise<ViewerSnapshot>
     listSourceFiles(sourcesDir),
     readIndexFile(wikiDir),
   ]);
-  const project = buildProject(root);
+  return assembleSnapshot({
+    root,
+    project: buildProject(root),
+    pages,
+    stateSources: state.sources,
+    pendingReviews,
+    sourceFilenames,
+    index,
+  });
+}
+
+/** Assemble collected page, state, and index records into a snapshot. */
+function assembleSnapshot(parts: SnapshotParts): ViewerSnapshot {
   // Concept/query counts are derived from `pages`, the already-confined
   // viewer page list, NOT from a second unconfined directory scan.
   // Anything the collector dropped for path-safety reasons (symlinked
   // file or directory) is therefore also excluded from the counts.
   const counts: ViewerCounts = {
-    concepts: pages.filter((p) => p.pageDirectory === "concepts").length,
-    queries: pages.filter((p) => p.pageDirectory === "queries").length,
-    sourceFiles: sourceFilenames.length,
-    pendingReviews,
-    compiledSources: Object.keys(state.sources).length,
+    concepts: parts.pages.filter((p) => p.pageDirectory === "concepts").length,
+    queries: parts.pages.filter((p) => p.pageDirectory === "queries").length,
+    sourceFiles: parts.sourceFilenames.length,
+    pendingReviews: parts.pendingReviews,
+    compiledSources: Object.keys(parts.stateSources).length,
   };
   const fullIndex: ViewerIndex = {
-    available: index.available,
+    available: parts.index.available,
     href: INDEX_HREF,
-    body: index.body,
-    outgoingLinks: resolveBareSlugList(extractWikilinkSlugs(index.body), pages),
+    body: parts.index.body,
+    outgoingLinks: resolveBareSlugList(extractWikilinkSlugs(parts.index.body), parts.pages),
   };
-  const sourceFileSet = new Set(sourceFilenames);
-  const annotatedPages = pages.map((page) => annotateCitationWarnings(page, sourceFileSet));
+  const sourceFileSet = new Set(parts.sourceFilenames);
+  const annotatedPages = parts.pages.map((page) => annotateCitationWarnings(page, sourceFileSet));
   const graph = buildGraphData(annotatedPages);
   return {
-    root,
+    root: parts.root,
     generatedAt: new Date().toISOString(),
-    project,
+    project: parts.project,
     counts,
     index: fullIndex,
     recentPages: buildRecentPages(annotatedPages),
     pages: annotatedPages,
-    sourceFilenames,
+    sourceFilenames: parts.sourceFilenames,
     graph,
   };
 }
@@ -169,14 +192,12 @@ function buildProject(root: string): ViewerProject {
  * @param sourcesDir - Absolute path to sources directory
  */
 async function listSourceFiles(sourcesDir: string): Promise<string[]> {
-  let expectedDir: string;
-  try {
-    expectedDir = await realpath(sourcesDir);
-  } catch {
+  if (await isSymlink(sourcesDir)) {
     return [];
   }
+
   try {
-    const entries = await readdir(expectedDir, { withFileTypes: true });
+    const entries = await readdir(sourcesDir, { withFileTypes: true });
     return entries.filter((e) => e.isFile()).map((e) => e.name);
   } catch {
     return [];
@@ -200,20 +221,24 @@ async function listSourceFiles(sourcesDir: string): Promise<string[]> {
  */
 async function readIndexFile(wikiDir: string): Promise<{ available: boolean; body: string }> {
   const expectedIndex = path.join(wikiDir, "index.md");
-  let resolved: string;
-  try {
-    resolved = await realpath(expectedIndex);
-  } catch {
+  if ((await isSymlink(wikiDir)) || (await isSymlink(expectedIndex))) {
     return { available: false, body: "" };
   }
-  if (resolved !== expectedIndex) {
-    return { available: false, body: "" };
-  }
+
   try {
-    const body = await readFile(resolved, "utf-8");
+    const body = await readFile(expectedIndex, "utf-8");
     return { available: true, body };
   } catch {
     return { available: false, body: "" };
+  }
+}
+
+/** Return true for symbolic links and false for missing or regular paths. */
+async function isSymlink(filePath: string): Promise<boolean> {
+  try {
+    return (await lstat(filePath)).isSymbolicLink();
+  } catch {
+    return false;
   }
 }
 
@@ -239,7 +264,7 @@ function buildRecentPages(pages: ViewerPage[]): ViewerRecentPage[] {
  * Build a snapshot for a specific project with custom paths.
  * Used by multi-project viewer to build snapshots for each project.
  */
-export async function buildProjectSnapshot(
+async function buildProjectSnapshot(
   root: string,
   projectConfig: { id: string; name: string; description?: string; sourcesDir: string; wikiDir: string }
 ): Promise<ViewerSnapshot> {
@@ -264,36 +289,15 @@ export async function buildProjectSnapshot(
     wikiDir: projectConfig.wikiDir,
   };
 
-  const counts: ViewerCounts = {
-    concepts: pages.filter((p) => p.pageDirectory === "concepts").length,
-    queries: pages.filter((p) => p.pageDirectory === "queries").length,
-    sourceFiles: sourceFilenames.length,
-    pendingReviews,
-    compiledSources: Object.keys(state.sources).length,
-  };
-
-  const fullIndex: ViewerIndex = {
-    available: index.available,
-    href: INDEX_HREF,
-    body: index.body,
-    outgoingLinks: resolveBareSlugList(extractWikilinkSlugs(index.body), pages),
-  };
-
-  const sourceFileSet = new Set(sourceFilenames);
-  const annotatedPages = pages.map((page) => annotateCitationWarnings(page, sourceFileSet));
-  const graph = buildGraphData(annotatedPages);
-
-  return {
+  return assembleSnapshot({
     root,
-    generatedAt: new Date().toISOString(),
     project,
-    counts,
-    index: fullIndex,
-    recentPages: buildRecentPages(annotatedPages),
-    pages: annotatedPages,
+    pages,
+    stateSources: state.sources,
+    pendingReviews,
     sourceFilenames,
-    graph,
-  };
+    index,
+  });
 }
 
 /**

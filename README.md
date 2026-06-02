@@ -29,6 +29,10 @@ llmwiki view --open
 
 # Or batch process multiple files at once
 llmwiki batch-compile ./documents/ --batch 5
+
+# Or first normalize mixed local files into Markdown
+llmwiki convert ./documents --out ./converted-markdown
+llmwiki batch-compile ./converted-markdown --batch 5
 ```
 
 
@@ -245,6 +249,12 @@ Pages include source attribution in frontmatter. Paragraphs are annotated with `
 
 
 ## Commands
+
+User manual: [docs/USER_MANUAL.md](docs/USER_MANUAL.md)
+
+Full parameter reference: [docs/CLI_REFERENCE.md](docs/CLI_REFERENCE.md)
+
+CLI test report: [docs/CLI_TEST_REPORT.md](docs/CLI_TEST_REPORT.md)
 
 | Command | What it does |
 |---------|-------------|

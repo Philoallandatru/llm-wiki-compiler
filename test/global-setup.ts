@@ -8,12 +8,18 @@
  * eliminates the race and saves ~1s per integration test file.
  */
 
-import { execFile } from "child_process";
+import { exec as execCommand } from "child_process";
 import { promisify } from "util";
 import path from "path";
 
-const exec = promisify(execFile);
+const exec = promisify(execCommand);
 
 export async function setup(): Promise<void> {
-  await exec("npx", ["tsup"], { cwd: path.resolve(".") });
+  await exec(resolveTsupCommand(), { cwd: path.resolve(".") });
+}
+
+/** Resolve the local tsup command in a way Windows shells can execute. */
+function resolveTsupCommand(): string {
+  if (process.platform === "win32") return String.raw`node_modules\.bin\tsup.cmd`;
+  return "node_modules/.bin/tsup";
 }

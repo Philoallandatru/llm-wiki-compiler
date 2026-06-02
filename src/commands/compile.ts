@@ -23,21 +23,20 @@ export default async function compileCommand(
   const root = process.cwd();
 
   // Merge projectId into options to avoid conflicts
-  const mergedOptions: CompileOptions = {
-    ...options,
-    projectId: projectId ?? options.projectId,
-  };
+  const targetProjectId = projectId ?? options.projectId;
+  const mergedOptions: CompileOptions = { ...options };
+  delete mergedOptions.projectId;
 
   // Setup project symlinks if using a non-default project
   const { setupProjectSymlinks } = await import("../utils/project-symlinks.js");
-  const cleanup = await setupProjectSymlinks(root);
+  const cleanup = await setupProjectSymlinks(root, targetProjectId);
 
   try {
     // Determine the sources directory to check
     let sourcesDir = SOURCES_DIR;
-    if (mergedOptions.projectId) {
+    if (targetProjectId) {
       const { getProjectPaths } = await import("../utils/project-config.js");
-      const paths = await getProjectPaths(root, mergedOptions.projectId);
+      const paths = await getProjectPaths(root, targetProjectId);
       sourcesDir = paths.sourcesDir;
     }
 

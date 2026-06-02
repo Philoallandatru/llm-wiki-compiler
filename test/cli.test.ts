@@ -48,6 +48,7 @@ describe("CLI smoke tests", () => {
     const { stdout } = await exec("node", [CLI, "--help"]);
     expect(stdout).toContain("llmwiki");
     expect(stdout).toContain("ingest");
+    expect(stdout).toContain("convert");
     expect(stdout).toContain("compile");
     expect(stdout).toContain("query");
   }, 30_000);
@@ -58,13 +59,18 @@ describe("CLI smoke tests", () => {
   }, 30_000);
 
   it("compile fails without Anthropic credentials", async () => {
+    const workspace = await createCompileWorkspace("compile-no-anthropic-creds");
     try {
       await exec("node", [CLI, "compile"], {
+        cwd: workspace.cwd,
         env: {
           ...process.env,
+          LLMWIKI_PROVIDER: "anthropic",
+          LLMWIKI_CLAUDE_SETTINGS_PATH: path.join(workspace.cwd, "missing-settings.json"),
           ANTHROPIC_API_KEY: "",
           ANTHROPIC_AUTH_TOKEN: "",
           ANTHROPIC_BASE_URL: "http://localhost:11434",
+          OPENAI_API_KEY: "",
         },
       });
       expect.fail("should have thrown");
@@ -72,6 +78,8 @@ describe("CLI smoke tests", () => {
       const error = err as { stderr?: string; code?: number };
       // Should exit with non-zero or print an error
       expect(error.code).not.toBe(0);
+    } finally {
+      await cleanupDirectory(workspace.cwd);
     }
   });
 

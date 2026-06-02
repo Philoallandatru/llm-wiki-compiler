@@ -4,9 +4,13 @@
  * converted to OpenAI format (parameters).
  */
 
-import { describe, it, expect } from "vitest";
-import { translateToolToOpenAI } from "../src/providers/openai.js";
+import { afterEach, describe, it, expect, vi } from "vitest";
+import { OpenAIProvider, translateToolToOpenAI } from "../src/providers/openai.js";
 import type { LLMTool } from "../src/utils/provider.js";
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe("translateToolToOpenAI", () => {
   it("translates input_schema to parameters", () => {
@@ -70,5 +74,32 @@ describe("translateToolToOpenAI", () => {
     expect(results[1].function.name).toBe("tool_b");
     expect(results[0].function.parameters).toEqual(tools[0].input_schema);
     expect(results[1].function.parameters).toEqual(tools[1].input_schema);
+  });
+
+  it("uses MiniMax's embeddings request and response shape", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      status: 200,
+      json: async () => ({
+        vectors: [[0.1, 0.2, 0.3]],
+        base_resp: { status_code: 0, status_msg: "success" },
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const provider = new OpenAIProvider("MiniMax-M2.7", {
+      apiKey: "test-key",
+      baseURL: "https://api.minimax.chat/v1",
+    });
+
+    await expect(provider.embed("hello")).resolves.toEqual([0.1, 0.2, 0.3]);
+    const request = fetchMock.mock.calls[0];
+    const body = JSON.parse(request[1].body as string) as Record<string, unknown>;
+
+    expect(request[0]).toBe("https://api.minimax.chat/v1/embeddings");
+    expect(body).toEqual({
+      model: "embo-01",
+      texts: ["hello"],
+      type: "db",
+    });
   });
 });

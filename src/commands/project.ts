@@ -12,6 +12,7 @@ import {
   setDefaultProject,
   readProjectsConfig,
   resolveProjectPaths,
+  type ProjectConfig,
 } from "../utils/project-config.js";
 
 /**
@@ -25,7 +26,7 @@ export async function projectAddCommand(
 ): Promise<void> {
   try {
     await addProject(root, projectId, name, description);
-    console.log(`✓ Created project "${name}" (${projectId})`);
+    console.log(`+ Created project "${name}" (${projectId})`);
     console.log(`  Sources: projects/${projectId}/sources/`);
     console.log(`  Wiki:    projects/${projectId}/wiki/`);
   } catch (err) {
@@ -46,23 +47,26 @@ export async function projectListCommand(root: string): Promise<void> {
   }
 
   console.log("\nWiki Projects:\n");
-
   for (const project of projects) {
-    const isActive = project.id === config.defaultProject;
-    const marker = isActive ? "→" : " ";
-    const paths = resolveProjectPaths(root, project);
-
-    console.log(`${marker} ${project.name} (${project.id})`);
-    if (project.description) {
-      console.log(`  ${project.description}`);
-    }
-    console.log(`  Sources: ${project.sourcesDir}`);
-    console.log(`  Wiki:    ${project.wikiDir}`);
-    if (isActive) {
-      console.log(`  [ACTIVE]`);
-    }
-    console.log();
+    printProjectListItem(project, config.defaultProject);
   }
+}
+
+/** Print one row in the project list command output. */
+function printProjectListItem(project: ProjectConfig, activeProjectId: string): void {
+  const isActive = project.id === activeProjectId;
+  const marker = isActive ? ">" : " ";
+
+  console.log(`${marker} ${project.name} (${project.id})`);
+  if (project.description) {
+    console.log(`  ${project.description}`);
+  }
+  console.log(`  Sources: ${project.sourcesDir}`);
+  console.log(`  Wiki:    ${project.wikiDir}`);
+  if (isActive) {
+    console.log("  [ACTIVE]");
+  }
+  console.log();
 }
 
 /**
@@ -71,8 +75,8 @@ export async function projectListCommand(root: string): Promise<void> {
 export async function projectSwitchCommand(root: string, projectId: string): Promise<void> {
   try {
     await setDefaultProject(root, projectId);
-    console.log(`✓ Switched to project "${projectId}"`);
-    console.log(`  All commands will now use this project by default.`);
+    console.log(`+ Switched to project "${projectId}"`);
+    console.log("  All commands will now use this project by default.");
   } catch (err) {
     throw new Error(
       `Failed to switch project: ${err instanceof Error ? err.message : err}`,
@@ -87,8 +91,8 @@ export async function projectSwitchCommand(root: string, projectId: string): Pro
 export async function projectRemoveCommand(root: string, projectId: string): Promise<void> {
   try {
     await removeProject(root, projectId);
-    console.log(`✓ Removed project "${projectId}" from configuration`);
-    console.log(`  Note: Project directories were NOT deleted.`);
+    console.log(`+ Removed project "${projectId}" from configuration`);
+    console.log("  Note: Project directories were NOT deleted.");
     console.log(`  To delete files, manually remove: projects/${projectId}/`);
   } catch (err) {
     throw new Error(
@@ -117,7 +121,7 @@ export async function projectShowCommand(root: string, projectId: string): Promi
   }
   console.log(`Status: ${isActive ? "ACTIVE" : "Inactive"}`);
   console.log(`Created: ${project.createdAt}`);
-  console.log(`\nPaths:`);
+  console.log("\nPaths:");
   console.log(`  Sources:    ${paths.sourcesDir}`);
   console.log(`  Wiki:       ${paths.wikiDir}`);
   console.log(`  Concepts:   ${paths.conceptsDir}`);
