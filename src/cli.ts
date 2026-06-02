@@ -11,6 +11,7 @@ import { createRequire } from "module";
 import { Command } from "commander";
 import ingestCommand from "./commands/ingest.js";
 import ingestSessionCommand from "./commands/ingest-session.js";
+import convertCommand from "./commands/convert.js";
 import viewCommand from "./commands/view.js";
 import compileCommand from "./commands/compile.js";
 import batchCompileCommand from "./commands/batch-compile.js";
@@ -70,6 +71,38 @@ program
       process.exit(1);
     }
   });
+
+program
+  .command("convert <folder>")
+  .description("Recursively convert supported files in a folder to flattened Markdown")
+  .requiredOption("--out <folder>", "New output folder for converted Markdown files")
+  .option("--pdf-engine <name>", "PDF parser to use (currently: pymupdf)", "pymupdf")
+  .option(
+    "--chunk-size <chars>",
+    "Maximum body characters per Markdown output file (default: 100000)",
+    (val) => parseInt(val, 10),
+  )
+  .option("--include <extensions>", "Comma-separated extensions to include, e.g. .txt,.pdf")
+  .option("--exclude <patterns>", "Comma-separated path substrings to skip")
+  .action(
+    async (
+      folder: string,
+      options: {
+        out: string;
+        pdfEngine?: string;
+        chunkSize?: number;
+        include?: string;
+        exclude?: string;
+      },
+    ) => {
+      try {
+        await convertCommand(folder, options);
+      } catch (err) {
+        console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
+        process.exit(1);
+      }
+    },
+  );
 
 program
   .command("view")

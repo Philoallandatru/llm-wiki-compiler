@@ -29,6 +29,10 @@ llmwiki view --open
 
 # Or batch process multiple files at once
 llmwiki batch-compile ./documents/ --batch 5
+
+# Or first normalize mixed local files into Markdown
+llmwiki convert ./documents --out ./converted-markdown
+llmwiki batch-compile ./converted-markdown --batch 5
 ```
 
 

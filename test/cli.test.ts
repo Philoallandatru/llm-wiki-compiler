@@ -48,6 +48,7 @@ describe("CLI smoke tests", () => {
     const { stdout } = await exec("node", [CLI, "--help"]);
     expect(stdout).toContain("llmwiki");
     expect(stdout).toContain("ingest");
+    expect(stdout).toContain("convert");
     expect(stdout).toContain("compile");
     expect(stdout).toContain("query");
   }, 30_000);
