@@ -125,8 +125,56 @@ describe("convert command", () => {
     await writeFile(path.join(inputDir, "empty.txt"), "", "utf-8");
 
     await expect(convertCommand(inputDir, { out: outDir })).rejects.toThrow(
-      /No Markdown files were written/,
+      /One or more files failed/,
     );
+  });
+
+  it("exits non-zero after partial failures while preserving successful outputs", async () => {
+    vi.spyOn(console, "log").mockImplementation(() => undefined);
+    const inputDir = path.join(root.dir, "partial-failure-input");
+    const outDir = path.join(root.dir, "partial-failure-output");
+    await mkdir(inputDir, { recursive: true });
+    await writeFile(path.join(inputDir, "keep.txt"), "Keep me", "utf-8");
+    await writeFile(path.join(inputDir, "empty.txt"), "", "utf-8");
+
+    await expect(convertCommand(inputDir, { out: outDir })).rejects.toThrow(
+      /One or more files failed/,
+    );
+
+    const bodies = await readOutputBodies(outDir);
+    expect(bodies).toHaveLength(1);
+    expect(bodies[0]).toContain("Keep me");
+  });
+
+  it("rejects output folders that are the input folder or its parent", async () => {
+    vi.spyOn(console, "log").mockImplementation(() => undefined);
+    const inputDir = path.join(root.dir, "bad-out-input");
+    await mkdir(inputDir, { recursive: true });
+    await writeFile(path.join(inputDir, "keep.txt"), "Keep me", "utf-8");
+
+    await expect(convertCommand(inputDir, { out: inputDir })).rejects.toThrow(
+      /separate folder/,
+    );
+    await expect(convertCommand(inputDir, { out: root.dir })).rejects.toThrow(/separate folder/);
+  });
+
+  it("does not duplicate existing Markdown frontmatter when chunking", async () => {
+    vi.spyOn(console, "log").mockImplementation(() => undefined);
+    const inputDir = path.join(root.dir, "frontmatter-input");
+    const outDir = path.join(root.dir, "frontmatter-output");
+    await mkdir(inputDir, { recursive: true });
+    await writeFile(
+      path.join(inputDir, "frontmatter.md"),
+      "---\ntitle: Original\nlegacy: true\n---\n\nAlpha paragraph.\n\nBeta paragraph.",
+      "utf-8",
+    );
+
+    const summary = await convertCommand(inputDir, { out: outDir, chunkSize: 20 });
+    const bodies = await readOutputBodies(outDir);
+
+    expect(summary.written).toBe(2);
+    expect(bodies.join("\n")).not.toContain("legacy: true");
+    expect(bodies[0]).toContain("sourceType: markdown");
   });
 
   it("skips common generated directories by default", async () => {

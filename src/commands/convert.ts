@@ -8,11 +8,11 @@
 
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
-import { buildFrontmatter } from "../utils/markdown.js";
+import { buildFrontmatter, parseFrontmatterStatus } from "../utils/markdown.js";
 import { chunkMarkdown } from "../convert/chunker.js";
 import { convertFileToMarkdown } from "../convert/converters.js";
 import { normalizeConvertOptions } from "../convert/options.js";
-import { buildOutputFilename, buildOutputStem } from "../convert/path-utils.js";
+import { buildOutputFilename, buildOutputStem, isPathInside } from "../convert/path-utils.js";
 import { scanConvertInput } from "../convert/scanner.js";
 import type {
   ConvertedFile,
@@ -30,6 +30,7 @@ export default async function convertCommand(
 ): Promise<ConvertSummary> {
   const inputRoot = path.resolve(folder);
   const normalized = normalizeConvertOptions(options);
+  assertOutputFolderAllowed(inputRoot, normalized.outDir);
   const scan = await scanConvertInput(inputRoot, normalized);
   const summary = emptySummary(scan.candidates.length, scan.skipped);
 
@@ -40,10 +41,14 @@ export default async function convertCommand(
   }
 
   printSummary(summary, normalized.outDir);
-  if (summary.written === 0 && summary.failed > 0) {
-    throw new Error("No Markdown files were written because all conversions failed.");
-  }
+  if (summary.failed > 0) throw new Error("One or more files failed to convert.");
   return summary;
+}
+
+/** Reject output paths that would make the input disappear during scanning. */
+function assertOutputFolderAllowed(inputRoot: string, outDir: string): void {
+  if (!isPathInside(inputRoot, outDir)) return;
+  throw new Error("--out must be a separate folder, not the input folder or one of its parents.");
 }
 
 /** Print a short preflight summary before conversion starts. */
@@ -88,7 +93,6 @@ async function convertOneFile(
 ): Promise<void> {
   try {
     const converted = await convertFileToMarkdown(sourcePath, options.pdfEngine);
-    assertHasContent(converted);
     const outputs = await writeConvertedFile(inputRoot, sourcePath, converted, options);
     summary.outputs.push(...outputs);
     summary.written += outputs.length;
@@ -106,7 +110,9 @@ async function writeConvertedFile(
   options: NormalizedConvertOptions,
 ): Promise<ConvertOutput[]> {
   const stem = buildOutputStem(sourcePath, inputRoot);
-  const chunks = chunkMarkdown(converted.body, options.chunkSize);
+  const body = bodyForChunking(converted);
+  assertHasContent(body);
+  const chunks = chunkMarkdown(body, options.chunkSize);
   const outputs: ConvertOutput[] = [];
   for (const [index, chunk] of chunks.entries()) {
     const outputPath = path.join(options.outDir, buildOutputFilename(stem, index + 1, chunks.length));
@@ -178,8 +184,16 @@ function ensureTrailingNewline(content: string): string {
   return content.endsWith("\n") ? content : `${content}\n`;
 }
 
+/** Return the body to chunk, stripping valid existing frontmatter from Markdown. */
+function bodyForChunking(converted: ConvertedFile): string {
+  if (converted.sourceType !== "markdown") return converted.body;
+  const parsed = parseFrontmatterStatus(converted.body);
+  if (!parsed.hasFrontmatterBlock || parsed.malformedFrontmatter) return converted.body;
+  return parsed.body;
+}
+
 /** Fail clearly when a supported file produces no useful Markdown body. */
-function assertHasContent(converted: ConvertedFile): void {
-  if (converted.body.trim().length > 0) return;
+function assertHasContent(body: string): void {
+  if (body.trim().length > 0) return;
   throw new Error("No extractable content found.");
 }

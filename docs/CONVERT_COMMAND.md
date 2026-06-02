@@ -14,6 +14,8 @@ llmwiki convert ./documents --out ./converted-markdown
 
 The command recursively scans `./documents`, converts supported files, and
 writes all Markdown files into the top level of `./converted-markdown`.
+The output path must be separate from the input folder; it cannot be the input
+folder itself or one of its parent folders.
 
 Recommended next step:
 
@@ -49,6 +51,11 @@ llmwiki convert <folder> --out <folder> [options]
 
 The scanner skips `.git`, `node_modules`, `dist`, and the output folder by
 default.
+
+If any supported file fails to convert, `llmwiki convert` finishes the scan,
+prints the failures, and exits non-zero. Successfully converted files remain in
+the output folder, but you should fix the reported failures before running
+`batch-compile`.
 
 ## Examples
 
