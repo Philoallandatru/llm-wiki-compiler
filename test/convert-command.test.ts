@@ -194,4 +194,46 @@ describe("convert command", () => {
     expect(summary.scanned).toBe(1);
     expect(summary.written).toBe(1);
   });
+
+  it("converts source code and config files as fenced Markdown", async () => {
+    vi.spyOn(console, "log").mockImplementation(() => undefined);
+    const inputDir = path.join(root.dir, "text-like-input");
+    const outDir = path.join(root.dir, "text-like-output");
+    await mkdir(inputDir, { recursive: true });
+    await writeFile(path.join(inputDir, "app.ts"), "\uFEFFexport const value = 1;\n", "utf-8");
+    await writeFile(path.join(inputDir, "package.json"), '\uFEFF{ "name": "demo" }\n', "utf-8");
+    await writeFile(path.join(inputDir, "settings.yaml"), "enabled: true\n", "utf-8");
+
+    const summary = await convertCommand(inputDir, { out: outDir });
+    const bodies = await readOutputBodies(outDir);
+
+    expect(summary.written).toBe(3);
+    expect(bodies.some((body) => body.includes("sourceType: code"))).toBe(true);
+    expect(bodies.some((body) => body.includes("```typescript\nexport const value"))).toBe(true);
+    expect(bodies.some((body) => body.includes("sourceType: config"))).toBe(true);
+    expect(bodies.some((body) => body.includes('```json\n{ "name": "demo" }'))).toBe(true);
+    expect(bodies.some((body) => body.includes("```yaml\nenabled: true"))).toBe(true);
+  });
+
+  it("converts extensionless text-like files and skips binary-looking ones", async () => {
+    vi.spyOn(console, "log").mockImplementation(() => undefined);
+    const inputDir = path.join(root.dir, "extensionless-input");
+    const outDir = path.join(root.dir, "extensionless-output");
+    await mkdir(inputDir, { recursive: true });
+    await writeFile(path.join(inputDir, "LICENSE"), "Permission is granted.\n", "utf-8");
+    await writeFile(path.join(inputDir, "blob"), Buffer.from([0, 1, 2, 3, 0, 255]));
+
+    const summary = await convertCommand(inputDir, { out: outDir });
+    const bodies = await readOutputBodies(outDir);
+
+    expect(summary.scanned).toBe(1);
+    expect(summary.written).toBe(1);
+    expect(summary.skippedFiles).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ reason: "binary-looking extensionless file" }),
+      ]),
+    );
+    expect(bodies[0]).toContain("sourceType: text");
+    expect(bodies[0]).toContain("Permission is granted.");
+  });
 });

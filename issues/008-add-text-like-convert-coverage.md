@@ -1,6 +1,6 @@
 # 008 - Add Text-Like File Coverage To `llmwiki convert`
 
-Status: Open
+Status: Done
 Type: AFK
 Labels: feature/convert, area/file-types
 
@@ -13,12 +13,12 @@ Markdown-safe and preserve the original content in a readable form.
 
 ## Acceptance criteria
 
-- [ ] Common source/config/log extensions are discovered recursively.
-- [ ] Converted output is written as flattened Markdown files in the output folder.
-- [ ] Source metadata records the original local path and source type.
-- [ ] Code-like content is wrapped or escaped so Markdown rendering does not alter it.
-- [ ] Unsupported binary-looking files are skipped or failed with clear reporting.
-- [ ] Tests cover at least source code, JSON/YAML, and extensionless text-like files.
+- [x] Common source/config/log extensions are discovered recursively.
+- [x] Converted output is written as flattened Markdown files in the output folder.
+- [x] Source metadata records the original local path and source type.
+- [x] Code-like content is wrapped or escaped so Markdown rendering does not alter it.
+- [x] Unsupported binary-looking files are skipped or failed with clear reporting.
+- [x] Tests cover at least source code, JSON/YAML, and extensionless text-like files.
 
 ## Blocked by
 

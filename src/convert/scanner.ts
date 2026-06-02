@@ -15,8 +15,9 @@ import {
   type ScanResult,
 } from "./types.js";
 import { isPathInside } from "./path-utils.js";
+import { fileLooksLikeText, textLikeExtensions } from "./text-like.js";
 
-const supportedExtensions = new Set<string>(SUPPORTED_EXTENSIONS);
+const supportedExtensions = new Set<string>([...SUPPORTED_EXTENSIONS, ...textLikeExtensions()]);
 const defaultExcludedDirs = new Set<string>(DEFAULT_EXCLUDED_DIRS);
 
 /** Recursively scan inputRoot for files that can be converted to Markdown. */
@@ -48,7 +49,7 @@ async function scanDirectory(
     if (entry.isDirectory()) {
       await scanDirectory(root, entryPath, options, result);
     } else if (entry.isFile()) {
-      addFileCandidate(entryPath, options, result);
+      await addFileCandidate(entryPath, options, result);
     }
   }
 }
@@ -66,22 +67,26 @@ function shouldSkipDirectory(
 }
 
 /** Add a file to the conversion list or record why it was skipped. */
-function addFileCandidate(
+async function addFileCandidate(
   filePath: string,
   options: NormalizedConvertOptions,
   result: ScanResult,
-): void {
+): Promise<void> {
   const extension = path.extname(filePath).toLowerCase();
   if (matchesExcludePattern(filePath, options.excludePatterns)) {
     result.skipped.push({ filePath, reason: "matched --exclude" });
     return;
   }
-  if (!supportedExtensions.has(extension)) {
+  if (!supportedExtensions.has(extension) && extension !== "") {
     result.skipped.push({ filePath, reason: `unsupported extension ${extension || "(none)"}` });
     return;
   }
   if (options.includeExtensions && !options.includeExtensions.has(extension)) {
     result.skipped.push({ filePath, reason: "not matched by --include" });
+    return;
+  }
+  if (extension === "" && !(await fileLooksLikeText(filePath))) {
+    result.skipped.push({ filePath, reason: "binary-looking extensionless file" });
     return;
   }
   result.candidates.push(filePath);

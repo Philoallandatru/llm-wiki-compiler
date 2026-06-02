@@ -9,7 +9,7 @@
 /** Default character limit before converted Markdown is split into parts. */
 export const DEFAULT_CHUNK_SIZE = 100_000;
 
-/** File extensions that the convert command can turn into Markdown. */
+/** Built-in document extensions that the convert command can turn into Markdown. */
 export const SUPPORTED_EXTENSIONS = [".md", ".txt", ".pdf", ".html", ".htm"] as const;
 
 /** Directories skipped by the recursive scanner unless files are addressed elsewhere. */
@@ -18,7 +18,7 @@ export const DEFAULT_EXCLUDED_DIRS = [".git", "node_modules", "dist"] as const;
 /** Supported PDF extraction engine names. */
 export const SUPPORTED_PDF_ENGINES = ["pymupdf"] as const;
 
-export type ConvertSourceType = "markdown" | "text" | "pdf" | "html";
+export type ConvertSourceType = "markdown" | "text" | "pdf" | "html" | "code" | "config" | "log";
 
 export type PdfEngine = (typeof SUPPORTED_PDF_ENGINES)[number];
 

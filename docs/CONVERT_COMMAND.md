@@ -31,6 +31,10 @@ llmwiki batch-compile ./converted-markdown --batch 5
 | `.txt` | Written as Markdown with source metadata frontmatter. |
 | `.pdf` | Extracted with PyMuPDF and written as Markdown with source metadata. |
 | `.html`, `.htm` | Extracted with Readability and converted with Turndown. |
+| Source code | Common code files such as `.ts`, `.js`, `.py`, `.go`, `.rs`, `.java`, `.css`, and `.sql` are fenced as Markdown code blocks. |
+| Config/data text | `.json`, `.jsonl`, `.yaml`, `.yml`, `.toml`, `.ini`, `.env`, `.xml`, `.csv`, and `.tsv` are fenced with source metadata. |
+| Logs | `.log`, `.out`, and `.err` are fenced as Markdown-safe text. |
+| Extensionless text | Text-looking files such as `LICENSE`, `README`, `Dockerfile`, `Makefile`, or other extensionless text files are converted. Binary-looking extensionless files are skipped. |
 
 MinerU is not part of the current implementation. The only PDF engine currently
 accepted is `pymupdf`.
@@ -69,6 +73,12 @@ Convert only PDFs and text files:
 
 ```bash
 llmwiki convert ./research --out ./research-md --include .pdf,.txt
+```
+
+Convert local source and config files:
+
+```bash
+llmwiki convert ./repo-notes --out ./repo-markdown --include .ts,.json,.yaml
 ```
 
 Skip archive folders:

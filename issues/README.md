@@ -14,7 +14,7 @@ a vertical slice that can be implemented, tested, and reviewed independently.
 - 005 - Done
 - 006 - Done
 - 007 - Done
-- 008 - Open
+- 008 - Done
 - 009 - Open
 - 010 - Open
 - 011 - Open
