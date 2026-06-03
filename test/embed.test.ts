@@ -59,9 +59,11 @@ describe("OpenAIProvider.embed", () => {
     expect(calls[0].input).toBe("hello world");
   });
 
-  it("reuses the primary client when no embeddings URL is configured", () => {
+  it("uses a separate embeddings client so embedding timeout stays independent", () => {
     const provider = new OpenAIProvider("gpt-4o", { apiKey: "test-key" });
-    expect(Reflect.get(provider, "embeddingsClient")).toBe(Reflect.get(provider, "client"));
+    expect(Reflect.get(provider, "embeddingsClient")).not.toBe(Reflect.get(provider, "client"));
+    expect(Reflect.get(provider, "embeddingsClient").timeout).toBe(30_000);
+    expect(Reflect.get(provider, "client").timeout).toBe(600_000);
   });
 
   it("uses a separate embeddings client when an embeddings URL is configured", async () => {

@@ -9,6 +9,8 @@ import OpenAI from "openai";
 import type { LLMProvider, LLMMessage, LLMTool } from "../utils/provider.js";
 import {
   EMBEDDING_MODELS,
+  DEFAULT_EMBEDDINGS_TIMEOUT_MS,
+  EMBEDDINGS_TIMEOUT_ENV_VAR,
   MINIMAX_EMBEDDING_MODEL,
   OPENAI_DEFAULT_TIMEOUT_MS,
 } from "../utils/constants.js";
@@ -26,6 +28,8 @@ interface OpenAIProviderOptions {
    * raises the default and reads LLMWIKI_REQUEST_TIMEOUT_MS / OLLAMA_TIMEOUT_MS.
    */
   timeoutMs?: number;
+  /** Timeout in milliseconds for embedding requests only. */
+  embeddingTimeoutMs?: number;
 }
 
 /** Shape returned by MiniMax's embeddings endpoint. */
@@ -78,7 +82,7 @@ export class OpenAIProvider implements LLMProvider {
   protected readonly embeddingsBaseURL?: string;
   protected readonly usesMiniMaxEmbeddings: boolean;
   private readonly apiKey: string;
-  private readonly timeoutMs: number;
+  private readonly embeddingTimeoutMs: number;
 
   constructor(model: string, options: OpenAIProviderOptions = {}) {
     this.model = model;
@@ -88,7 +92,7 @@ export class OpenAIProvider implements LLMProvider {
     const resolvedKey = options.apiKey ?? process.env.OPENAI_API_KEY ?? "";
     this.apiKey = resolvedKey;
     const timeout = options.timeoutMs ?? resolveOpenAITimeoutMs() ?? OPENAI_DEFAULT_TIMEOUT_MS;
-    this.timeoutMs = timeout;
+    this.embeddingTimeoutMs = resolveEmbeddingTimeoutMs(options.embeddingTimeoutMs);
     const baseURL = options.baseURL ?? null;
     this.embeddingsBaseURL = options.embeddingsBaseURL ?? options.baseURL;
     this.usesMiniMaxEmbeddings = isMiniMaxBaseURL(this.embeddingsBaseURL);
@@ -98,8 +102,12 @@ export class OpenAIProvider implements LLMProvider {
       timeout,
     });
     this.embeddingsClient = options.embeddingsBaseURL
-      ? new OpenAI({ apiKey: resolvedKey, baseURL: options.embeddingsBaseURL, timeout })
-      : this.client;
+      ? new OpenAI({
+        apiKey: resolvedKey,
+        baseURL: options.embeddingsBaseURL,
+        timeout: this.embeddingTimeoutMs,
+      })
+      : new OpenAI({ apiKey: resolvedKey, baseURL, timeout: this.embeddingTimeoutMs });
   }
 
   /** Send a single non-streaming completion request. */
@@ -199,7 +207,7 @@ export class OpenAIProvider implements LLMProvider {
     const response = await fetch(url, {
       method: "POST",
       headers: this.embeddingHeaders(),
-      signal: AbortSignal.timeout(this.timeoutMs),
+      signal: AbortSignal.timeout(this.embeddingTimeoutMs),
       body: JSON.stringify({
         model: this.embeddingModel(),
         texts: [text],
@@ -234,5 +242,14 @@ function parseMiniMaxVector(status: number, body: MiniMaxEmbeddingResponse): num
   throw new Error(
     `MiniMax embeddings response did not include a vector ` +
       `(HTTP ${status}, code ${statusCode ?? "unknown"}: ${statusMsg ?? "unknown error"}).`,
+  );
+}
+
+/** Resolve embedding timeout separately from long-running generation calls. */
+function resolveEmbeddingTimeoutMs(explicit?: number): number {
+  return (
+    explicit ??
+    readTimeoutEnv(EMBEDDINGS_TIMEOUT_ENV_VAR) ??
+    DEFAULT_EMBEDDINGS_TIMEOUT_MS
   );
 }

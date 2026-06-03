@@ -10,7 +10,23 @@
 export const DEFAULT_CHUNK_SIZE = 100_000;
 
 /** Built-in document extensions that the convert command can turn into Markdown. */
-export const SUPPORTED_EXTENSIONS = [".md", ".txt", ".pdf", ".html", ".htm"] as const;
+export const SUPPORTED_EXTENSIONS = [
+  ".md",
+  ".txt",
+  ".pdf",
+  ".html",
+  ".htm",
+  ".docx",
+  ".pptx",
+  ".csv",
+  ".tsv",
+  ".xlsx",
+  ".xls",
+  ".jpg",
+  ".jpeg",
+  ".png",
+  ".webp",
+] as const;
 
 /** Directories skipped by the recursive scanner unless files are addressed elsewhere. */
 export const DEFAULT_EXCLUDED_DIRS = [".git", "node_modules", "dist"] as const;
@@ -18,7 +34,18 @@ export const DEFAULT_EXCLUDED_DIRS = [".git", "node_modules", "dist"] as const;
 /** Supported PDF extraction engine names. */
 export const SUPPORTED_PDF_ENGINES = ["pymupdf"] as const;
 
-export type ConvertSourceType = "markdown" | "text" | "pdf" | "html" | "code" | "config" | "log";
+export type ConvertSourceType =
+  | "markdown"
+  | "text"
+  | "pdf"
+  | "html"
+  | "document"
+  | "presentation"
+  | "table"
+  | "image"
+  | "code"
+  | "config"
+  | "log";
 
 export type PdfEngine = (typeof SUPPORTED_PDF_ENGINES)[number];
 
@@ -57,6 +84,7 @@ export interface ConvertedFile {
   title: string;
   body: string;
   sourceType: ConvertSourceType;
+  contexts?: string[];
 }
 
 export interface ConvertOutput {

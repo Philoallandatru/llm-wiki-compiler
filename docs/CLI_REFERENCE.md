@@ -41,6 +41,8 @@ llmwiki view --open
 | `LLMWIKI_OUTPUT_LANG` | 生成内容的目标语言，作用于 `compile` 和 `query`。命令行 `--lang` 优先级更高。 |
 | `LLMWIKI_PROMPT_BUDGET_CHARS` | 单个概念生成时可放入 prompt 的源内容字符上限。默认 `200000`。 |
 | `LLMWIKI_REQUEST_TIMEOUT_MS` | OpenAI/Ollama 请求超时，单位毫秒。 |
+| `LLMWIKI_NO_EMBEDDINGS` | 设置为 `1`、`true` 或 `yes` 时，`compile` / `batch-compile` 跳过非关键 embeddings 刷新。 |
+| `LLMWIKI_EMBEDDINGS_TIMEOUT_MS` | embeddings 请求的独立超时，单位毫秒。默认 `30000`，不影响主 LLM 生成超时。 |
 | `ANTHROPIC_API_KEY` / `ANTHROPIC_AUTH_TOKEN` | Anthropic provider 凭证，二选一。 |
 | `ANTHROPIC_BASE_URL` | Anthropic 兼容代理地址。 |
 | `OPENAI_API_KEY` | OpenAI provider 凭证；本地兼容服务也需要传一个值。 |

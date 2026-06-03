@@ -7,7 +7,10 @@
 
 import Anthropic, { type ClientOptions } from "@anthropic-ai/sdk";
 import type { LLMProvider, LLMMessage, LLMTool } from "../utils/provider.js";
-import { EMBEDDING_MODELS } from "../utils/constants.js";
+import {
+  DEFAULT_EMBEDDINGS_TIMEOUT_MS,
+  EMBEDDING_MODELS,
+} from "../utils/constants.js";
 
 const VOYAGE_EMBEDDINGS_URL = "https://api.voyageai.com/v1/embeddings";
 
@@ -21,6 +24,7 @@ interface AnthropicProviderOptions {
   apiKey?: string;
   authToken?: string;
   baseURL?: string;
+  embeddingTimeoutMs?: number;
 }
 
 export function buildAnthropicClientOptions(
@@ -57,9 +61,11 @@ export function buildAnthropicClientOptions(
 export class AnthropicProvider implements LLMProvider {
   private readonly client: Anthropic;
   private readonly model: string;
+  private readonly embeddingTimeoutMs: number;
 
   constructor(model: string, options: AnthropicProviderOptions = {}) {
     this.model = model;
+    this.embeddingTimeoutMs = options.embeddingTimeoutMs ?? DEFAULT_EMBEDDINGS_TIMEOUT_MS;
     this.client = new Anthropic(buildAnthropicClientOptions(options));
   }
 
@@ -151,6 +157,7 @@ export class AnthropicProvider implements LLMProvider {
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,
       },
+      signal: AbortSignal.timeout(this.embeddingTimeoutMs),
       body: JSON.stringify({ input: text, model: EMBEDDING_MODELS.anthropic }),
     });
 

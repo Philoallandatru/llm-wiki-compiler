@@ -128,6 +128,12 @@ export interface CompileOptions {
   review?: boolean;
   /** Optional project ID for multi-project support. */
   projectId?: string;
+  /** Disable reading and writing cached concept extraction results. */
+  noExtractionCache?: boolean;
+  /** Ignore existing extraction cache entries and overwrite them after LLM extraction. */
+  refreshExtractionCache?: boolean;
+  /** Skip non-critical embedding refresh after writing wiki pages. */
+  noEmbeddings?: boolean;
 }
 
 /**

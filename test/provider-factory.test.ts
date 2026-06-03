@@ -181,7 +181,7 @@ describe("getProvider", () => {
     const provider = getProvider();
 
     expect(provider).toBeInstanceOf(OpenAIProvider);
-    expect(Reflect.get(provider, "embeddingsClient")).toBe(Reflect.get(provider, "client"));
+    expect(Reflect.get(provider, "embeddingsClient")).not.toBe(Reflect.get(provider, "client"));
     expect(Reflect.get(provider, "configuredEmbeddingModel")).toBeUndefined();
   });
 

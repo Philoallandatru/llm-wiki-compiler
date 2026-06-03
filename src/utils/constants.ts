@@ -63,6 +63,12 @@ export const COPILOT_BASE_URL = "https://api.githubcopilot.com";
  */
 export const OPENAI_DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
 
+/** Default timeout for non-critical embedding refresh requests. */
+export const DEFAULT_EMBEDDINGS_TIMEOUT_MS = 30 * 1000;
+
+/** Env var that overrides the embedding-only request timeout. */
+export const EMBEDDINGS_TIMEOUT_ENV_VAR = "LLMWIKI_EMBEDDINGS_TIMEOUT_MS";
+
 /**
  * Default request timeout for Ollama (30 minutes). Local models on modest
  * hardware can take well over the cloud-provider default for a single
@@ -81,6 +87,7 @@ export const LOCK_FILE = ".llmwiki/lock";
 export const INDEX_FILE = "wiki/index.md";
 export const MOC_FILE = "wiki/MOC.md";
 export const EMBEDDINGS_FILE = ".llmwiki/embeddings.json";
+export const EXTRACTIONS_DIR = ".llmwiki/extractions";
 export const LAST_LINT_FILE = ".llmwiki/last-lint.json";
 
 /** Supported image file extensions for vision-based ingest. */
