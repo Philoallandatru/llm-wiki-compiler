@@ -8,7 +8,7 @@ import { existsSync } from "fs";
 import { compile } from "../compiler/index.js";
 import * as output from "../utils/output.js";
 import { SOURCES_DIR } from "../utils/constants.js";
-import type { CompileOptions } from "../utils/types.js";
+import type { CompileOptions, CompileResult } from "../utils/types.js";
 
 /**
  * Run the compile command from the current working directory.
@@ -19,7 +19,7 @@ import type { CompileOptions } from "../utils/types.js";
 export default async function compileCommand(
   options: CompileOptions = {},
   projectId?: string,
-): Promise<void> {
+): Promise<CompileResult | void> {
   const root = process.cwd();
 
   // Merge projectId into options to avoid conflicts
@@ -48,7 +48,7 @@ export default async function compileCommand(
       return;
     }
 
-    await compile(root, mergedOptions);
+    return await compile(root, mergedOptions);
   } finally {
     // Clean up symlinks
     await cleanup();

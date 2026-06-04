@@ -1,6 +1,6 @@
 # 014 - Refactor CLI Command Registration
 
-Status: Open
+Status: Done
 Type: AFK
 Labels: area/cli, area/refactor
 
@@ -13,12 +13,12 @@ easier to extend.
 
 ## Acceptance criteria
 
-- [ ] The CLI entrypoint is below the repository file-size guideline.
-- [ ] Command registration is grouped into focused modules.
-- [ ] Existing command help output remains stable.
-- [ ] Provider credential checks keep the same behavior.
-- [ ] Tests cover top-level help and representative subcommand help.
-- [ ] No command behavior changes outside the refactor.
+- [x] The CLI entrypoint is below the repository file-size guideline.
+- [x] Command registration is grouped into focused modules.
+- [x] Existing command help output remains stable.
+- [x] Provider credential checks keep the same behavior.
+- [x] Tests cover top-level help and representative subcommand help.
+- [x] No command behavior changes outside the refactor.
 
 ## Blocked by
 

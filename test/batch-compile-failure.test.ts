@@ -6,7 +6,7 @@
  * produced, leaving users with many imported sources and no compiled output.
  */
 
-import { describe, it, expect, vi } from "vitest";
+import { beforeEach, describe, it, expect, vi } from "vitest";
 import { mkdir, readdir, writeFile } from "fs/promises";
 import path from "path";
 import { useTempRoot } from "./fixtures/temp-root.js";
@@ -18,6 +18,10 @@ vi.mock("../src/commands/compile.js", () => ({
 }));
 
 const root = useTempRoot(["sources"]);
+
+beforeEach(() => {
+  compileMock.mockReset();
+});
 
 /** Seed an input directory with two source files that become separate batches. */
 async function seedBatchInput(): Promise<string> {
@@ -36,18 +40,37 @@ async function seedBatchInput(): Promise<string> {
   return inputDir;
 }
 
+/** Run one single-file batch and assert the compile phase fails as expected. */
+async function expectBatchCompileFailure(pattern: RegExp): Promise<void> {
+  const { default: batchCompileCommand } = await import(
+    "../src/commands/batch-compile.js"
+  );
+  const inputDir = await seedBatchInput();
+
+  await expect(batchCompileCommand(inputDir, { batch: 1 })).rejects.toThrow(pattern);
+  expect(compileMock).toHaveBeenCalledTimes(1);
+}
+
 describe("batch-compile failure handling", () => {
   it("fails fast when compile fails after ingesting a batch", async () => {
     compileMock.mockRejectedValueOnce(new Error("provider timeout"));
-    const { default: batchCompileCommand } = await import("../src/commands/batch-compile.js");
-    const inputDir = await seedBatchInput();
 
-    await expect(batchCompileCommand(inputDir, { batch: 1 })).rejects.toThrow(
-      /Batch 1 failed after ingest/,
-    );
+    await expectBatchCompileFailure(/Batch 1 failed after ingest/);
 
-    expect(compileMock).toHaveBeenCalledTimes(1);
     const sources = await readdir(path.join(root.dir, "sources"));
     expect(sources).toHaveLength(1);
+  });
+
+  it("fails fast when compile returns no generated pages for an ingested batch", async () => {
+    compileMock.mockResolvedValueOnce({
+      compiled: 1,
+      skipped: 0,
+      deleted: 0,
+      concepts: [],
+      pages: [],
+      errors: ["No concepts extracted from a.md"],
+    });
+
+    await expectBatchCompileFailure(/No concepts extracted from a\.md/);
   });
 });

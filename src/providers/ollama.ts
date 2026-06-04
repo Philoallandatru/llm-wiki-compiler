@@ -13,6 +13,7 @@ interface OllamaProviderOptions {
   baseURL: string;
   embeddingsBaseURL?: string;
   embeddingModel?: string;
+  embeddingTimeoutMs?: number;
   /**
    * Per-request timeout in milliseconds. Defaults to 30 minutes for Ollama
    * because local models on modest hardware can take much longer than the
@@ -40,6 +41,7 @@ export class OllamaProvider extends OpenAIProvider {
       apiKey: "ollama",
       embeddingsBaseURL: options.embeddingsBaseURL,
       embeddingModel: options.embeddingModel,
+      embeddingTimeoutMs: options.embeddingTimeoutMs,
       timeoutMs: resolveOllamaTimeoutMs(options.timeoutMs),
     });
   }

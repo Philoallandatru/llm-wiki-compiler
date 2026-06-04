@@ -13,6 +13,7 @@ import compileCommand from "./compile.js";
 import * as output from "../utils/output.js";
 import { createProjectContext } from "../utils/project-resolver.js";
 import { listDirectoryFiles, chunkArray } from "../utils/fs-helpers.js";
+import type { CompileOptions, CompileResult } from "../utils/types.js";
 
 /** Result of ingesting a single file in a batch. */
 interface BatchIngestResult {
@@ -26,6 +27,9 @@ interface BatchIngestResult {
 interface BatchCompileOptions {
   batch?: number;
   project?: string;
+  noExtractionCache?: boolean;
+  refreshExtractionCache?: boolean;
+  noEmbeddings?: boolean;
 }
 
 /** Data needed to run all batches after input and project resolution. */
@@ -34,6 +38,7 @@ interface BatchCompileSetup {
   batches: string[][];
   sourcesDir: string;
   projectId: string;
+  compileOptions: CompileOptions;
   folderPath: string;
 }
 
@@ -116,6 +121,7 @@ async function processBatch(
   totalBatches: number,
   sourcesDir: string,
   projectId: string,
+  compileOptions: CompileOptions,
 ): Promise<BatchTotals> {
   output.header(`Batch ${batchNum}/${totalBatches}`);
   output.status("*", output.info(`Ingesting ${batch.length} file(s)...`));
@@ -134,7 +140,7 @@ async function processBatch(
       `Batch ${batchNum}: Ingested ${ingestResult.succeeded}, skipped ${ingestResult.failed}`,
     ),
   );
-  await compileBatch(batchNum, projectId);
+  await compileBatch(batchNum, projectId, compileOptions);
 
   return { ingested: ingestResult.succeeded, failed: ingestResult.failed, compiled: 1 };
 }
@@ -148,19 +154,35 @@ function reportSkippedCompile(batchNum: number, failed: number): void {
 }
 
 /** Compile after a successful batch and fail fast if compilation fails. */
-async function compileBatch(batchNum: number, projectId: string): Promise<void> {
+async function compileBatch(
+  batchNum: number,
+  projectId: string,
+  compileOptions: CompileOptions,
+): Promise<void> {
   output.status("*", output.info("Compiling..."));
 
   try {
-    await compileCommand({}, projectId);
+    const result = await compileCommand(compileOptions, projectId);
+    assertBatchCompileProducedPages(result);
     output.status("+", output.success(`Batch ${batchNum} compiled successfully`));
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     output.status("!", output.error(`Batch ${batchNum} compile failed: ${message}`));
     throw new Error(
-      `Batch ${batchNum} failed after ingest. ` +
+      `Batch ${batchNum} failed after ingest: ${message}. ` +
         `Fix the compile error, then run \`llmwiki compile\` to process already-ingested files.`,
     );
+  }
+}
+
+/** Fail batch-compile when compile ran but produced no usable wiki pages. */
+function assertBatchCompileProducedPages(result: CompileResult | void): void {
+  if (!result) return;
+  if (result.errors.length > 0) {
+    throw new Error(result.errors.join("; "));
+  }
+  if (result.compiled > 0 && result.pages.length === 0) {
+    throw new Error("Compile produced no wiki pages for the ingested batch.");
   }
 }
 
@@ -200,7 +222,17 @@ async function prepareBatchCompile(
     batches: chunkArray(files, batchSize),
     sourcesDir: paths.sourcesDir,
     projectId: project.id,
+    compileOptions: buildCompileOptions(options),
     folderPath,
+  };
+}
+
+/** Pick compile-specific options from the batch command surface. */
+function buildCompileOptions(options: BatchCompileOptions): CompileOptions {
+  return {
+    noExtractionCache: options.noExtractionCache,
+    refreshExtractionCache: options.refreshExtractionCache,
+    noEmbeddings: options.noEmbeddings,
   };
 }
 
@@ -226,6 +258,7 @@ async function processBatches(setup: BatchCompileSetup): Promise<BatchTotals> {
       setup.batches.length,
       setup.sourcesDir,
       setup.projectId,
+      setup.compileOptions,
     );
     totals.ingested += result.ingested;
     totals.failed += result.failed;

@@ -6,7 +6,8 @@
  * converted documents so later ingest/compile runs stay manageable.
  */
 
-import { mkdir, writeFile } from "fs/promises";
+import { mkdir, mkdtemp, rename, rm, writeFile } from "fs/promises";
+import { existsSync } from "fs";
 import path from "path";
 import { buildFrontmatter, parseFrontmatterStatus } from "../utils/markdown.js";
 import { chunkMarkdown } from "../convert/chunker.js";
@@ -31,24 +32,74 @@ export default async function convertCommand(
   const inputRoot = path.resolve(folder);
   const normalized = normalizeConvertOptions(options);
   assertOutputFolderAllowed(inputRoot, normalized.outDir);
+  assertOutputDoesNotExist(normalized.outDir);
   const scan = await scanConvertInput(inputRoot, normalized);
   const summary = emptySummary(scan.candidates.length, scan.skipped);
 
   printPlan(scan.candidates, scan.skipped.length);
-  await mkdir(normalized.outDir, { recursive: true });
-  for (const sourcePath of scan.candidates) {
-    await convertOneFile(inputRoot, sourcePath, normalized, summary);
+  const tempOutDir = await createTemporaryOutputDir(normalized.outDir);
+  const workOptions = { ...normalized, outDir: tempOutDir };
+  try {
+    for (const sourcePath of scan.candidates) {
+      await convertOneFile(inputRoot, sourcePath, workOptions, summary);
+    }
+    await publishConvertedOutput(summary, tempOutDir, normalized.outDir);
+    printSummary(summary, normalized.outDir);
+    return summary;
+  } catch (error) {
+    await cleanupTemporaryOutput(tempOutDir);
+    printSummary(summary, normalized.outDir);
+    throw error;
   }
-
-  printSummary(summary, normalized.outDir);
-  if (summary.failed > 0) throw new Error("One or more files failed to convert.");
-  return summary;
 }
 
 /** Reject output paths that would make the input disappear during scanning. */
 function assertOutputFolderAllowed(inputRoot: string, outDir: string): void {
   if (!isPathInside(inputRoot, outDir)) return;
   throw new Error("--out must be a separate folder, not the input folder or one of its parents.");
+}
+
+/** Reject ambiguous output targets before doing conversion work. */
+function assertOutputDoesNotExist(outDir: string): void {
+  if (!existsSync(outDir)) return;
+  throw new Error(`Output folder already exists: ${outDir}`);
+}
+
+/** Create a sibling temp directory so final rename stays on the same filesystem. */
+async function createTemporaryOutputDir(outDir: string): Promise<string> {
+  const parent = path.dirname(outDir);
+  await mkdir(parent, { recursive: true });
+  return await mkdtemp(path.join(parent, `.${path.basename(outDir)}.tmp-`));
+}
+
+/** Publish temp outputs and rewrite summary paths to the final directory. */
+async function publishConvertedOutput(
+  summary: ConvertSummary,
+  tempOutDir: string,
+  finalOutDir: string,
+): Promise<void> {
+  if (summary.failed > 0) {
+    throw new Error("One or more files failed to convert.");
+  }
+  await rename(tempOutDir, finalOutDir);
+  rewriteOutputPaths(summary, tempOutDir, finalOutDir);
+}
+
+/** Remove temp output on failed conversion or failed publish. */
+async function cleanupTemporaryOutput(tempOutDir: string): Promise<void> {
+  await rm(tempOutDir, { recursive: true, force: true });
+}
+
+/** Point summary outputs at the published folder instead of the temp folder. */
+function rewriteOutputPaths(
+  summary: ConvertSummary,
+  tempOutDir: string,
+  finalOutDir: string,
+): void {
+  summary.outputs = summary.outputs.map((item) => ({
+    ...item,
+    outputPath: path.join(finalOutDir, path.relative(tempOutDir, item.outputPath)),
+  }));
 }
 
 /** Print a short preflight summary before conversion starts. */
@@ -151,6 +202,7 @@ function buildOutputContent(
     totalParts,
   };
   if (converted.sourceType === "pdf") fields.pdfEngine = options.pdfEngine;
+  if (converted.contexts && converted.contexts.length > 0) fields.contexts = converted.contexts;
   const frontmatter = buildFrontmatter(fields);
   return `${frontmatter}\n\n${body.trim()}\n`;
 }

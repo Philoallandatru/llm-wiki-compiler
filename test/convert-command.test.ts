@@ -7,6 +7,7 @@
  */
 
 import { describe, expect, it, vi } from "vitest";
+import { existsSync } from "fs";
 import { mkdir, readdir, readFile, writeFile } from "fs/promises";
 import path from "path";
 import convertCommand from "../src/commands/convert.js";
@@ -22,6 +23,14 @@ async function seedMixedInput(): Promise<string> {
   await writeFile(path.join(inputDir, "plain.txt"), "Alpha paragraph\n\nBeta paragraph", "utf-8");
   await writeFile(path.join(inputDir, "page.html"), htmlFixture(), "utf-8");
   await writeFile(path.join(inputDir, "ignored.bin"), "binary-ish", "utf-8");
+  return inputDir;
+}
+
+/** Create a single-file conversion input folder. */
+async function seedSingleFileInput(folderName: string, fileName: string, content: string): Promise<string> {
+  const inputDir = path.join(root.dir, folderName);
+  await mkdir(inputDir, { recursive: true });
+  await writeFile(path.join(inputDir, fileName), content, "utf-8");
   return inputDir;
 }
 
@@ -119,17 +128,15 @@ describe("convert command", () => {
 
   it("reports empty supported files as failed conversions", async () => {
     vi.spyOn(console, "log").mockImplementation(() => undefined);
-    const inputDir = path.join(root.dir, "empty-input");
+    const inputDir = await seedSingleFileInput("empty-input", "empty.txt", "");
     const outDir = path.join(root.dir, "empty-output");
-    await mkdir(inputDir, { recursive: true });
-    await writeFile(path.join(inputDir, "empty.txt"), "", "utf-8");
 
     await expect(convertCommand(inputDir, { out: outDir })).rejects.toThrow(
       /One or more files failed/,
     );
   });
 
-  it("exits non-zero after partial failures while preserving successful outputs", async () => {
+  it("exits non-zero after partial failures without publishing final outputs", async () => {
     vi.spyOn(console, "log").mockImplementation(() => undefined);
     const inputDir = path.join(root.dir, "partial-failure-input");
     const outDir = path.join(root.dir, "partial-failure-output");
@@ -141,21 +148,62 @@ describe("convert command", () => {
       /One or more files failed/,
     );
 
-    const bodies = await readOutputBodies(outDir);
-    expect(bodies).toHaveLength(1);
-    expect(bodies[0]).toContain("Keep me");
+    expect(existsSync(outDir)).toBe(false);
   });
 
   it("rejects output folders that are the input folder or its parent", async () => {
     vi.spyOn(console, "log").mockImplementation(() => undefined);
-    const inputDir = path.join(root.dir, "bad-out-input");
-    await mkdir(inputDir, { recursive: true });
-    await writeFile(path.join(inputDir, "keep.txt"), "Keep me", "utf-8");
+    const inputDir = await seedSingleFileInput("bad-out-input", "keep.txt", "Keep me");
 
     await expect(convertCommand(inputDir, { out: inputDir })).rejects.toThrow(
       /separate folder/,
     );
     await expect(convertCommand(inputDir, { out: root.dir })).rejects.toThrow(/separate folder/);
+  });
+
+  it("rejects an existing output folder before conversion starts", async () => {
+    vi.spyOn(console, "log").mockImplementation(() => undefined);
+    const inputDir = path.join(root.dir, "existing-out-input");
+    const outDir = path.join(root.dir, "existing-out");
+    await mkdir(inputDir, { recursive: true });
+    await mkdir(outDir, { recursive: true });
+    await writeFile(path.join(inputDir, "keep.txt"), "Keep me", "utf-8");
+
+    await expect(convertCommand(inputDir, { out: outDir })).rejects.toThrow(
+      /Output folder already exists/,
+    );
+  });
+
+  it("fails empty or no-readable-content HTML without publishing output", async () => {
+    vi.spyOn(console, "log").mockImplementation(() => undefined);
+    const inputDir = await seedSingleFileInput(
+      "empty-html-input",
+      "empty.html",
+      "<html><body></body></html>",
+    );
+    const outDir = path.join(root.dir, "empty-html-output");
+
+    await expect(convertCommand(inputDir, { out: outDir })).rejects.toThrow(
+      /One or more files failed/,
+    );
+    expect(existsSync(outDir)).toBe(false);
+  });
+
+  it("accepts malformed-but-readable HTML", async () => {
+    vi.spyOn(console, "log").mockImplementation(() => undefined);
+    const inputDir = await seedSingleFileInput(
+      "malformed-html-input",
+      "readable.html",
+      "<html><body><article><h1>Readable<p>Still useful",
+    );
+    const outDir = path.join(root.dir, "malformed-html-output");
+
+    const summary = await convertCommand(inputDir, { out: outDir });
+    const bodies = await readOutputBodies(outDir);
+
+    expect(summary.written).toBe(1);
+    expect(bodies[0]).toContain("Readable");
+    expect(bodies[0]).toContain("Still useful");
   });
 
   it("does not duplicate existing Markdown frontmatter when chunking", async () => {

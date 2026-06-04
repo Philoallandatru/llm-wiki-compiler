@@ -55,6 +55,12 @@ import {
 } from "../linter/rules.js";
 import type { LintResult } from "../linter/types.js";
 import { renderMergedPageContent } from "./page-renderer.js";
+import {
+  buildExtractionCacheContext,
+  readCachedExtraction,
+  writeCachedExtraction,
+  type ExtractionCacheContext,
+} from "./extraction-cache.js";
 import * as output from "../utils/output.js";
 import {
   COMPILE_CONCURRENCY,
@@ -89,8 +95,11 @@ function emptyCompileResult(): CompileResult {
  * @param root - Project root directory.
  * @param options - Optional pipeline overrides (e.g. --review mode).
  */
-export async function compile(root: string, options: CompileOptions = {}): Promise<void> {
-  await compileAndReport(root, options);
+export async function compile(
+  root: string,
+  options: CompileOptions = {},
+): Promise<CompileResult> {
+  return await compileAndReport(root, options);
 }
 
 /**
@@ -206,6 +215,27 @@ async function persistExtractionStates(
   }
 }
 
+/** Collect user-visible compile issues that did not previously throw. */
+function collectCompileErrors(
+  generation: PageGenerationResult,
+  extractions: ExtractionResult[],
+): string[] {
+  const errors = [...generation.errors];
+  for (const result of extractions) {
+    if (result.concepts.length === 0) {
+      errors.push(`No concepts extracted from ${result.sourceFile}`);
+    }
+  }
+  return errors;
+}
+
+/** Print compile issues so CLI users can see why no pages appeared. */
+function printCompileErrors(errors: string[]): void {
+  for (const error of errors) {
+    output.status("!", output.warn(error));
+  }
+}
+
 /** Build the structured CompileResult and emit the CLI completion banner. */
 function summarizeCompile(
   buckets: ChangeBuckets,
@@ -213,23 +243,18 @@ function summarizeCompile(
   extractions: ExtractionResult[],
   options: CompileOptions,
 ): CompileResult {
+  const errors = collectCompileErrors(generation, extractions);
   output.header("Compilation complete");
   output.status("✓", output.success(
     `${buckets.toCompile.length} compiled, ${buckets.unchanged.length} skipped, ${buckets.deleted.length} deleted`,
   ));
+  printCompileErrors(errors);
   if (options.review && generation.candidates.length > 0) {
     output.status("?", output.info(
       `${generation.candidates.length} candidate(s) awaiting review — run \`llmwiki review list\``,
     ));
   } else if (buckets.toCompile.length > 0) {
     output.status("→", output.dim('Next: llmwiki query "your question here"'));
-  }
-
-  const errors = [...generation.errors];
-  for (const result of extractions) {
-    if (result.concepts.length === 0) {
-      errors.push(`No concepts extracted from ${result.sourceFile}`);
-    }
   }
 
   // Concept-page slugs first, then seed-page slugs from the same run, so
@@ -261,7 +286,7 @@ async function runCompilePipeline(
   const schema = await loadSchema(root);
   reportSchemaStatus(schema);
   const state = await readState(root);
-  const changes = await detectChanges(root, state, sourcesDir);
+  const changes = await detectChanges(root, state, sourcesDir, conceptsDir);
   augmentWithAffectedSources(changes, findAffectedSources(state, changes));
 
   const buckets = bucketChanges(changes);
@@ -280,7 +305,7 @@ async function runCompilePipeline(
       await generateSeedPages(root, schema, emptyGeneration);
       // Rebuild index/MOC so the newly-written seed pages become discoverable,
       // and propagate any seed-page validation errors into the returned result.
-      await finalizeWiki(root, emptyGeneration.pages, emptyGeneration.seedSlugs);
+      await finalizeWiki(root, emptyGeneration.pages, emptyGeneration.seedSlugs, options);
       return {
         ...emptyCompileResult(),
         skipped: buckets.unchanged.length,
@@ -309,7 +334,13 @@ async function runCompilePipeline(
   const frozenSlugs = findFrozenSlugs(state, changes);
   reportFrozenSlugs(frozenSlugs);
 
-  const extractions = await runExtractionPhases(root, buckets.toCompile, state, changes);
+  const extractions = await runExtractionPhases(
+    root,
+    buckets.toCompile,
+    state,
+    changes,
+    options,
+  );
   if (!options.review) {
     await freezeFailedExtractions(root, extractions, frozenSlugs);
   }
@@ -325,7 +356,7 @@ async function runCompilePipeline(
     // Seed pages write directly into wiki/, so skip them in review mode
     // to honour the "no wiki/ mutation" contract of that mode.
     await generateSeedPages(root, schema, generation);
-    await finalizeWiki(root, generation.pages, generation.seedSlugs);
+    await finalizeWiki(root, generation.pages, generation.seedSlugs, options);
   }
   return summarizeCompile(buckets, generation, extractions, options);
 }
@@ -372,16 +403,17 @@ async function runExtractionPhases(
   toCompile: SourceChange[],
   state: WikiState,
   allChanges: SourceChange[],
+  options: CompileOptions,
 ): Promise<ExtractionResult[]> {
   const extractions: ExtractionResult[] = [];
   for (const change of toCompile) {
-    extractions.push(await extractForSource(root, change.file));
+    extractions.push(await extractForSource(root, change.file, options));
   }
 
   const lateAffected = findLateAffectedSources(extractions, state, allChanges);
   for (const file of lateAffected) {
     output.status("~", output.info(`${file} [shares concept with new source]`));
-    extractions.push(await extractForSource(root, file));
+    extractions.push(await extractForSource(root, file, options));
   }
 
   return extractions;
@@ -399,6 +431,7 @@ async function finalizeWiki(
   root: string,
   pages: MergedConcept[],
   seedSlugs: string[] = [],
+  options: CompileOptions = {},
 ): Promise<void> {
   const conceptChangedSlugs = pages.map((entry) => entry.slug);
   const conceptNewSlugs = pages
@@ -414,7 +447,7 @@ async function finalizeWiki(
 
   await generateIndex(root);
   await generateMOC(root);
-  await safelyUpdateEmbeddings(root, allChangedSlugs);
+  await safelyUpdateEmbeddings(root, allChangedSlugs, options);
 }
 
 /** Print a summary of detected source file changes. */
@@ -440,19 +473,64 @@ function printChangesSummary(changes: SourceChange[]): void {
 async function extractForSource(
   root: string,
   sourceFile: string,
+  options: CompileOptions,
 ): Promise<ExtractionResult> {
   output.status("*", output.info(`Extracting: ${sourceFile}`));
 
   const sourcePath = path.join(root, SOURCES_DIR, sourceFile);
   const sourceContent = await readFile(sourcePath, "utf-8");
   const existingIndex = await safeReadFile(path.join(root, INDEX_FILE));
+  const cacheContext = await buildExtractionCacheContext(
+    sourceFile,
+    sourcePath,
+    existingIndex,
+  );
+  const cached = await getCachedExtraction(root, cacheContext, options);
+  if (cached) {
+    reportCachedConcepts(cached);
+    return { sourceFile, sourcePath, sourceContent, concepts: cached };
+  }
+
   const concepts = await extractConcepts(sourceContent, existingIndex);
+  await cacheExtractionIfEnabled(root, cacheContext, concepts, options);
 
   if (concepts.length > 0) {
     const names = concepts.map((c) => c.concept).join(", ");
     output.status("*", output.dim(`  Found ${concepts.length} concepts: ${names}`));
   }
   return { sourceFile, sourcePath, sourceContent, concepts };
+}
+
+/** Read cached extraction results unless the caller requested a fresh run. */
+async function getCachedExtraction(
+  root: string,
+  context: ExtractionCacheContext,
+  options: CompileOptions,
+): Promise<ExtractedConcept[] | null> {
+  if (options.noExtractionCache || options.refreshExtractionCache) return null;
+  return await readCachedExtraction(root, context);
+}
+
+/** Persist non-empty extraction results without making cache failures fatal. */
+async function cacheExtractionIfEnabled(
+  root: string,
+  context: ExtractionCacheContext,
+  concepts: ExtractedConcept[],
+  options: CompileOptions,
+): Promise<void> {
+  if (options.noExtractionCache || concepts.length === 0) return;
+  try {
+    await writeCachedExtraction(root, context, concepts);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    output.status("!", output.warn(`Could not write extraction cache: ${message}`));
+  }
+}
+
+/** Print which cached concepts are reused for transparency. */
+function reportCachedConcepts(concepts: ExtractedConcept[]): void {
+  const names = concepts.map((concept) => concept.concept).join(", ");
+  output.status("*", output.dim(`  Reused cached concepts: ${names}`));
 }
 
 /** A concept with all contributing sources merged for generation. */
@@ -775,13 +853,28 @@ async function writePageIfValid(
  * Semantic search is a non-critical enhancement — missing API keys or
  * transient provider errors should produce a warning, not a broken build.
  */
-async function safelyUpdateEmbeddings(root: string, changedSlugs: string[]): Promise<void> {
+async function safelyUpdateEmbeddings(
+  root: string,
+  changedSlugs: string[],
+  options: CompileOptions,
+): Promise<void> {
+  if (shouldSkipEmbeddings(options)) {
+    output.status("*", output.dim("Skipped embeddings update (--no-embeddings)."));
+    return;
+  }
   try {
     await updateEmbeddings(root, changedSlugs);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     output.status("!", output.warn(`Skipped embeddings update: ${message}`));
   }
+}
+
+/** Return true when CLI options or env explicitly disable embedding refresh. */
+function shouldSkipEmbeddings(options: CompileOptions): boolean {
+  if (options.noEmbeddings) return true;
+  const raw = process.env.LLMWIKI_NO_EMBEDDINGS?.trim().toLowerCase();
+  return raw === "1" || raw === "true" || raw === "yes";
 }
 
 /**

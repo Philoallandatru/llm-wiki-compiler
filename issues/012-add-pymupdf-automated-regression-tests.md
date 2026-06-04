@@ -1,6 +1,6 @@
 # 012 - Add PyMuPDF Automated Regression Tests
 
-Status: Open
+Status: Done
 Type: AFK
 Labels: feature/convert, area/pdf, area/tests
 

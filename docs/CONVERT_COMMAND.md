@@ -30,9 +30,14 @@ llmwiki batch-compile ./converted-markdown --batch 5
 | `.md` | Passed through as Markdown. Long Markdown files can still be chunked. |
 | `.txt` | Written as Markdown with source metadata frontmatter. |
 | `.pdf` | Extracted with PyMuPDF and written as Markdown with source metadata. |
-| `.html`, `.htm` | Extracted with Readability and converted with Turndown. |
+| `.html`, `.htm` | Extracted with Readability and converted with Turndown. Malformed-but-readable HTML is accepted; empty or no-readable-content HTML fails. |
+| `.docx` | Extracted from Office Open XML paragraphs and written as Markdown with source metadata. Empty or unreadable documents fail. |
+| `.pptx` | Extracted from slide XML, preserving slide boundaries as Markdown headings. Empty or unreadable decks fail. |
+| `.csv`, `.tsv` | Parsed as tabular data and rendered as Markdown tables. |
+| `.xlsx`, `.xls` | Parsed as workbooks and rendered as Markdown tables. Multi-sheet workbooks include sheet headings and `contexts` metadata. |
+| `.png`, `.jpg`, `.jpeg`, `.webp` | OCR is performed with Anthropic vision and written as Markdown text. Images with no visible text fail. |
 | Source code | Common code files such as `.ts`, `.js`, `.py`, `.go`, `.rs`, `.java`, `.css`, and `.sql` are fenced as Markdown code blocks. |
-| Config/data text | `.json`, `.jsonl`, `.yaml`, `.yml`, `.toml`, `.ini`, `.env`, `.xml`, `.csv`, and `.tsv` are fenced with source metadata. |
+| Config/data text | `.json`, `.jsonl`, `.yaml`, `.yml`, `.toml`, `.ini`, `.env`, and `.xml` are fenced with source metadata. |
 | Logs | `.log`, `.out`, and `.err` are fenced as Markdown-safe text. |
 | Extensionless text | Text-looking files such as `LICENSE`, `README`, `Dockerfile`, `Makefile`, or other extensionless text files are converted. Binary-looking extensionless files are skipped. |
 
@@ -56,10 +61,11 @@ llmwiki convert <folder> --out <folder> [options]
 The scanner skips `.git`, `node_modules`, `dist`, and the output folder by
 default.
 
-If any supported file fails to convert, `llmwiki convert` finishes the scan,
-prints the failures, and exits non-zero. Successfully converted files remain in
-the output folder, but you should fix the reported failures before running
-`batch-compile`.
+`llmwiki convert` writes to a temporary output folder first. If every supported
+file converts successfully, the final `--out` folder is published. If any
+supported file fails, the command finishes the scan, prints the failures, exits
+non-zero, and does not publish the final output folder. This avoids accidentally
+running `batch-compile` against partial converted output.
 
 ## Examples
 
@@ -93,6 +99,13 @@ Use smaller chunks for long files:
 llmwiki convert ./research --out ./research-md --chunk-size 50000
 ```
 
+Chunking prefers readable Markdown boundaries. The converter first keeps
+heading sections together when they fit, then falls back to paragraph
+boundaries, then line boundaries for tables and code-like output, and finally
+uses hard character splits only for a single oversized block with no better
+boundary. Existing Markdown frontmatter is stripped before chunk metadata is
+added, so copied metadata is not duplicated.
+
 Convert PDFs with PyMuPDF:
 
 ```bash
@@ -105,6 +118,20 @@ If Python is not on your `PATH`, set `PYMUPDF_PYTHON` to the Python executable:
 ```bash
 PYMUPDF_PYTHON=/path/to/python llmwiki convert ./papers --out ./papers-md
 ```
+
+If PyMuPDF is not installed or the selected Python cannot import `fitz`, PDF
+conversion fails with a clear error and the final output folder is not created.
+
+Convert images with Anthropic vision OCR:
+
+```bash
+LLMWIKI_PROVIDER=anthropic ANTHROPIC_API_KEY=... llmwiki convert ./screenshots --out ./screenshots-md
+```
+
+Image OCR currently uses Anthropic vision rather than local OCR. It transcribes
+visible text only; images with no visible text are reported as failures. If the
+active provider is not Anthropic or credentials are missing, image conversion
+fails clearly and the final output folder is not created.
 
 ## Output Shape
 

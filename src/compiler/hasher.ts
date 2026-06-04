@@ -7,9 +7,10 @@
  */
 
 import { createHash } from "node:crypto";
+import { existsSync } from "node:fs";
 import { readFile, readdir } from "fs/promises";
 import path from "path";
-import { SOURCES_DIR } from "../utils/constants.js";
+import { CONCEPTS_DIR, SOURCES_DIR } from "../utils/constants.js";
 import type { WikiState, SourceChange } from "../utils/types.js";
 
 /**
@@ -28,19 +29,21 @@ export async function hashFile(filePath: string): Promise<string> {
  * @param root - Project root directory containing the sources/ folder.
  * @param prevState - The previously persisted WikiState to compare against.
  * @param sourcesDir - Optional custom sources directory (for multi-project support).
+ * @param conceptsDir - Optional custom concepts directory (for multi-project support).
  * @returns Array of SourceChange entries describing each file's status.
  */
 export async function detectChanges(
   root: string,
   prevState: WikiState,
   sourcesDir = SOURCES_DIR,
+  conceptsDir = CONCEPTS_DIR,
 ): Promise<SourceChange[]> {
   const sourcesPath = path.join(root, sourcesDir);
   const currentFiles = await listSourceFiles(sourcesPath);
   const changes: SourceChange[] = [];
 
   for (const file of currentFiles) {
-    const status = await classifyFile(root, file, prevState, sourcesDir);
+    const status = await classifyFile(root, file, prevState, sourcesDir, conceptsDir);
     changes.push({ file, status });
   }
 
@@ -76,6 +79,7 @@ async function classifyFile(
   file: string,
   prevState: WikiState,
   sourcesDir = SOURCES_DIR,
+  conceptsDir = CONCEPTS_DIR,
 ): Promise<SourceChange["status"]> {
   const filePath = path.join(root, sourcesDir, file);
   const hash = await hashFile(filePath);
@@ -83,7 +87,21 @@ async function classifyFile(
 
   if (!prev) return "new";
   if (prev.hash !== hash) return "changed";
+  if (prev.concepts.length === 0) return "changed";
+  if (hasMissingConceptPage(root, conceptsDir, prev.concepts)) return "changed";
   return "unchanged";
+}
+
+/** Return true when persisted source state points at pages missing on disk. */
+function hasMissingConceptPage(
+  root: string,
+  conceptsDir: string,
+  concepts: string[],
+): boolean {
+  return concepts.some((slug) => {
+    const pagePath = path.join(root, conceptsDir, `${slug}.md`);
+    return !existsSync(pagePath);
+  });
 }
 
 /**

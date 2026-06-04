@@ -6,9 +6,14 @@
  * appropriate backend (Anthropic, OpenAI, Ollama, or MiniMax).
  */
 
-import { DEFAULT_PROVIDER, PROVIDER_MODELS, OLLAMA_DEFAULT_HOST } from "./constants.js";
+import {
+  DEFAULT_PROVIDER,
+  EMBEDDINGS_TIMEOUT_ENV_VAR,
+  PROVIDER_MODELS,
+  OLLAMA_DEFAULT_HOST,
+} from "./constants.js";
 import { AnthropicProvider } from "../providers/anthropic.js";
-import { OpenAIProvider } from "../providers/openai.js";
+import { OpenAIProvider, readTimeoutEnv } from "../providers/openai.js";
 import { OllamaProvider } from "../providers/ollama.js";
 import { MiniMaxProvider } from "../providers/minimax.js";
 import { CopilotProvider } from "../providers/copilot.js";
@@ -70,12 +75,14 @@ export function getProvider(): LLMProvider {
         baseURL: readOptionalEnv("OPENAI_BASE_URL"),
         embeddingsBaseURL: readOptionalEnv("OPENAI_EMBEDDINGS_BASE_URL"),
         embeddingModel: readOptionalEnv("LLMWIKI_EMBEDDING_MODEL"),
+        embeddingTimeoutMs: readTimeoutEnv(EMBEDDINGS_TIMEOUT_ENV_VAR),
       });
     case "ollama":
       return new OllamaProvider(getModelForProvider("ollama"), {
         baseURL: readOptionalEnv("OLLAMA_HOST") ?? OLLAMA_DEFAULT_HOST,
         embeddingsBaseURL: readOptionalEnv("OLLAMA_EMBEDDINGS_HOST"),
         embeddingModel: readOptionalEnv("LLMWIKI_EMBEDDING_MODEL"),
+        embeddingTimeoutMs: readTimeoutEnv(EMBEDDINGS_TIMEOUT_ENV_VAR),
       });
     case "minimax":
       return getMiniMaxProvider();
@@ -126,6 +133,7 @@ function getAnthropicProvider(): AnthropicProvider {
 
   return new AnthropicProvider(model, {
     baseURL,
+    embeddingTimeoutMs: readTimeoutEnv(EMBEDDINGS_TIMEOUT_ENV_VAR),
     ...auth,
   });
 }
@@ -143,4 +151,13 @@ function getProviderName(): string {
 /** Expose the resolved provider name for callers that need model lookup. */
 export function getActiveProviderName(): string {
   return getProviderName();
+}
+
+/** Expose the resolved generation model without constructing a provider. */
+export function getActiveModelName(): string {
+  const providerName = getProviderName();
+  if (providerName === "anthropic") {
+    return resolveAnthropicModelFromEnv() ?? PROVIDER_MODELS.anthropic;
+  }
+  return process.env.LLMWIKI_MODEL ?? PROVIDER_MODELS[providerName];
 }

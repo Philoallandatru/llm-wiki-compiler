@@ -115,7 +115,8 @@ export function buildExtractionPrompt(
   return [
     ...withLangLine(
       "You are a knowledge extraction engine. Analyze the following source document",
-      "and identify 3-8 distinct, meaningful concepts worth documenting as wiki pages.",
+      "and identify up to 8 distinct, meaningful concepts worth documenting as wiki pages.",
+      "For short or narrowly-scoped sources, one strong concept is enough.",
       "Each concept should be a standalone topic that someone might look up.",
       "Focus on key ideas, techniques, patterns, or entities — not trivial details.",
       "Use the extract_concepts tool to return your findings.",

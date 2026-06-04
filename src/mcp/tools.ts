@@ -291,7 +291,7 @@ async function collectStatus(root: string, projectId?: string): Promise<WikiStat
   const concepts = await collectPageSummaries(conceptsDir);
   const queries = await collectPageSummaries(queriesDir);
   const state = await readState(root);
-  const changes = await detectChanges(root, state, sourcesDir);
+  const changes = await detectChanges(root, state, sourcesDir, conceptsDir);
   const orphans = await findOrphanedSlugs(root, projectId);
   const pendingCandidates = await countCandidates(root);
   const compileTimes = Object.values(state.sources).map((s) => s.compiledAt);

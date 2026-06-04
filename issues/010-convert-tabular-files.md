@@ -1,6 +1,6 @@
 # 010 - Convert Tabular Files To Markdown
 
-Status: Open
+Status: Done
 Type: AFK
 Labels: feature/convert, area/file-types
 
@@ -12,12 +12,12 @@ structured Markdown sections that are useful for later compile/query workflows.
 
 ## Acceptance criteria
 
-- [ ] `.csv` and `.tsv` files are discovered and converted.
-- [ ] `.xlsx` and `.xls` files are discovered and converted.
-- [ ] Multi-sheet workbooks preserve sheet names in the Markdown output.
-- [ ] Very large tables are chunked without breaking rows where possible.
-- [ ] Source metadata records the original file and table/sheet context.
-- [ ] Tests cover CSV, TSV, multi-sheet workbook, and large-table chunking.
+- [x] `.csv` and `.tsv` files are discovered and converted.
+- [x] `.xlsx` and `.xls` files are discovered and converted.
+- [x] Multi-sheet workbooks preserve sheet names in the Markdown output.
+- [x] Very large tables are chunked without breaking rows where possible.
+- [x] Source metadata records the original file and table/sheet context.
+- [x] Tests cover CSV, TSV, multi-sheet workbook, and large-table chunking.
 
 ## Blocked by
 

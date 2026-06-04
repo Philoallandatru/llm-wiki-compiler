@@ -44,6 +44,7 @@ describe("detectChanges", () => {
   beforeEach(async () => {
     tmpDir = await mkdtemp(path.join(os.tmpdir(), "llmwiki-detect-"));
     await mkdir(path.join(tmpDir, "sources"), { recursive: true });
+    await mkdir(path.join(tmpDir, "wiki", "concepts"), { recursive: true });
   });
 
   afterEach(async () => {
@@ -74,17 +75,50 @@ describe("detectChanges", () => {
   it("detects unchanged files", async () => {
     const filePath = path.join(tmpDir, "sources", "same.md");
     await writeFile(filePath, "same content", "utf-8");
+    await writeFile(path.join(tmpDir, "wiki", "concepts", "same.md"), "# Same", "utf-8");
     const hash = await hashFile(filePath);
 
     const state = emptyState();
     state.sources["same.md"] = {
+      hash,
+      concepts: ["same"],
+      compiledAt: "2026-01-01T00:00:00.000Z",
+    };
+
+    const changes = await detectChanges(tmpDir, state);
+    expect(changes).toEqual([{ file: "same.md", status: "unchanged" }]);
+  });
+
+  it("recompiles unchanged sources when state has no concepts", async () => {
+    const filePath = path.join(tmpDir, "sources", "empty-concepts.md");
+    await writeFile(filePath, "empty concepts content", "utf-8");
+    const hash = await hashFile(filePath);
+
+    const state = emptyState();
+    state.sources["empty-concepts.md"] = {
       hash,
       concepts: [],
       compiledAt: "2026-01-01T00:00:00.000Z",
     };
 
     const changes = await detectChanges(tmpDir, state);
-    expect(changes).toEqual([{ file: "same.md", status: "unchanged" }]);
+    expect(changes).toEqual([{ file: "empty-concepts.md", status: "changed" }]);
+  });
+
+  it("recompiles unchanged sources when their concept pages are missing", async () => {
+    const filePath = path.join(tmpDir, "sources", "stale.md");
+    await writeFile(filePath, "stale content", "utf-8");
+    const hash = await hashFile(filePath);
+
+    const state = emptyState();
+    state.sources["stale.md"] = {
+      hash,
+      concepts: ["missing-concept"],
+      compiledAt: "2026-01-01T00:00:00.000Z",
+    };
+
+    const changes = await detectChanges(tmpDir, state);
+    expect(changes).toEqual([{ file: "stale.md", status: "changed" }]);
   });
 
   it("detects deleted files", async () => {

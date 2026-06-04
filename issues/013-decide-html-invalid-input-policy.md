@@ -1,6 +1,6 @@
 # 013 - Decide And Enforce HTML Invalid-Input Policy
 
-Status: Open
+Status: Done
 Type: HITL
 Labels: feature/convert, area/html
 
