@@ -28,11 +28,11 @@ llmwiki query "what is X?"
 llmwiki view --open
 
 # Or batch process multiple files at once
-llmwiki batch-compile ./documents/ --batch 5
+llmwiki batch-compile ./documents/ --batch 2
 
 # Or first normalize mixed local files into Markdown
 llmwiki convert ./documents --out ./converted-markdown
-llmwiki batch-compile ./converted-markdown --batch 5
+llmwiki batch-compile ./converted-markdown --batch 2
 ```
 
 
@@ -260,7 +260,7 @@ CLI test report: [docs/CLI_TEST_REPORT.md](docs/CLI_TEST_REPORT.md)
 |---------|-------------|
 | `llmwiki ingest <url\|file>` | Fetch a URL or copy a local file into `sources/` |
 | `llmwiki ingest-session <path>` | Import a Claude/Codex/Cursor session export (single file or whole directory) into `sources/` |
-| `llmwiki batch-compile <folder>` | Ingest files from a folder in batches, compiling after each batch (default batch size: 5) |
+| `llmwiki batch-compile <folder>` | Ingest files from a folder in batches, compiling after each batch (default batch size: 2) |
 | `llmwiki batch-compile <folder> --batch <n>` | Process files in batches of N files at a time |
 | `llmwiki compile` | Incremental compile: extract concepts, generate wiki pages |
 | `llmwiki compile --review` | Write candidate pages to `.llmwiki/candidates/` instead of `wiki/` so you can review before they land |

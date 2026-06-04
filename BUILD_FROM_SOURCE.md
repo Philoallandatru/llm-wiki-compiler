@@ -50,7 +50,7 @@ node dist/cli.js <command> [options]
 
 # 示例
 node dist/cli.js ingest https://example.com/article
-node dist/cli.js batch-compile ./documents/ --batch 5
+node dist/cli.js batch-compile ./documents/ --batch 2
 node dist/cli.js compile
 node dist/cli.js query "what is X?"
 ```
@@ -63,7 +63,7 @@ npm link
 
 # 现在可以在任何地方使用 llmwiki 命令
 llmwiki ingest https://example.com/article
-llmwiki batch-compile ./documents/ --batch 5
+llmwiki batch-compile ./documents/ --batch 2
 llmwiki compile
 ```
 
@@ -74,7 +74,7 @@ llmwiki compile
 npx llmwiki <command> [options]
 
 # 示例
-npx llmwiki batch-compile ./documents/ --batch 5
+npx llmwiki batch-compile ./documents/ --batch 2
 ```
 
 ## 开发模式

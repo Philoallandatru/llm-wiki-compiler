@@ -20,7 +20,7 @@ folder itself or one of its parent folders.
 Recommended next step:
 
 ```bash
-llmwiki batch-compile ./converted-markdown --batch 5
+llmwiki batch-compile ./converted-markdown --batch 2
 ```
 
 ## Supported File Types

@@ -6,7 +6,7 @@
  */
 
 import type { Command } from "commander";
-import batchCompileCommand from "../commands/batch-compile.js";
+import batchCompileCommand, { DEFAULT_BATCH_SIZE } from "../commands/batch-compile.js";
 import compileCommand from "../commands/compile.js";
 import viewCommand from "../commands/view.js";
 import { applyLanguageOption, runCliAction } from "./action-utils.js";
@@ -69,7 +69,12 @@ function registerBatchCompileCommand(program: Command): void {
   program
     .command("batch-compile <folder>")
     .description("Ingest files from a folder in batches, compiling after each batch")
-    .option("-b, --batch <number>", "Number of files to ingest per batch (default: 5)", parseInteger, 5)
+    .option(
+      "-b, --batch <number>",
+      `Number of files to ingest per batch (default: ${DEFAULT_BATCH_SIZE})`,
+      parseInteger,
+      DEFAULT_BATCH_SIZE,
+    )
     .option("--no-extraction-cache", "Disable reading and writing cached concept extractions")
     .option("--refresh-extraction-cache", "Ignore existing extraction cache and overwrite it")
     .option("--no-embeddings", "Skip non-critical embedding refresh after each compile step")

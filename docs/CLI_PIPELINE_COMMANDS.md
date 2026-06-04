@@ -103,13 +103,13 @@ llmwiki batch-compile <folder> [options]
 | 参数 | 必填 | 默认值 | 说明 |
 | --- | --- | --- | --- |
 | `<folder>` | 是 | - | 要批量导入的目录。 |
-| `-b, --batch <number>` | 否 | `5` | 每批导入多少个文件。 |
+| `-b, --batch <number>` | 否 | `2` | 每批导入多少个文件。 |
 | `-p, --project <id>` | 否 | active project | 目标项目。 |
 
 ```bash
 llmwiki batch-compile ./documents
-llmwiki batch-compile ./documents --batch 10
-llmwiki batch-compile ./documents --batch 3 --project storage
+llmwiki batch-compile ./documents --batch 4
+llmwiki batch-compile ./documents --batch 2 --project storage
 ```
 
 行为：
