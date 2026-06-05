@@ -91,6 +91,37 @@ describe("batch-compile failure handling", () => {
     expect(sources).toHaveLength(2);
   });
 
+  it("continues after page validation errors from a compiled batch", async () => {
+    compileMock
+      .mockResolvedValueOnce({
+        compiled: 1,
+        skipped: 0,
+        deleted: 0,
+        concepts: ["Bad Page"],
+        pages: ["bad-page"],
+        errors: ['Invalid page for "Bad Page" — failed validation'],
+      })
+      .mockResolvedValueOnce({
+        compiled: 1,
+        skipped: 1,
+        deleted: 0,
+        concepts: ["Good Page"],
+        pages: ["good-page"],
+        errors: [],
+      });
+
+    const { default: batchCompileCommand } = await import(
+      "../src/commands/batch-compile.js"
+    );
+    const inputDir = await seedBatchInput(2);
+
+    await batchCompileCommand(inputDir, { batch: 1 });
+
+    const sources = await readdir(path.join(root.dir, "sources"));
+    expect(sources).toHaveLength(2);
+    expect(compileMock).toHaveBeenCalledTimes(2);
+  });
+
   it("fails fast when compile fails after ingesting a batch", async () => {
     compileMock.mockRejectedValueOnce(new Error("provider timeout"));
 

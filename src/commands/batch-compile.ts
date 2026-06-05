@@ -174,7 +174,7 @@ async function compileBatch(
   try {
     const result = await compileCommand(compileOptions, projectId);
     assertBatchCompileProducedPages(result);
-    output.status("+", output.success(`Batch ${batchNum} compiled successfully`));
+    reportCompileOutcome(batchNum, result);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     output.status("!", output.error(`Batch ${batchNum} compile failed: ${message}`));
@@ -185,15 +185,42 @@ async function compileBatch(
   }
 }
 
-/** Fail batch-compile when compile ran but produced no usable wiki pages. */
+/** Report the compile outcome, keeping page-validation skips visible but non-fatal. */
+function reportCompileOutcome(batchNum: number, result: CompileResult | void): void {
+  const validationErrors = countPageValidationErrors(result);
+  if (validationErrors === 0) {
+    output.status("+", output.success(`Batch ${batchNum} compiled successfully`));
+    return;
+  }
+
+  output.status(
+    "!",
+    output.warn(
+      `Batch ${batchNum} compiled with ${validationErrors} page validation warning(s)`,
+    ),
+  );
+}
+
+/** Fail batch-compile when compile ran but produced blocking errors. */
 function assertBatchCompileProducedPages(result: CompileResult | void): void {
   if (!result) return;
-  if (result.errors.length > 0) {
-    throw new Error(result.errors.join("; "));
+  const blockingErrors = result.errors.filter((error) => !isPageValidationError(error));
+  if (blockingErrors.length > 0) {
+    throw new Error(blockingErrors.join("; "));
   }
   if (result.compiled > 0 && result.pages.length === 0) {
     throw new Error("Compile produced no wiki pages for the ingested batch.");
   }
+}
+
+/** Count validation-only page skips that should not stop later batches. */
+function countPageValidationErrors(result: CompileResult | void): number {
+  return result?.errors.filter(isPageValidationError).length ?? 0;
+}
+
+/** Detect the compiler's page validation skip message. */
+function isPageValidationError(error: string): boolean {
+  return error.startsWith('Invalid page for "') && error.endsWith("failed validation");
 }
 
 /** Validate folder path and return file list. */
