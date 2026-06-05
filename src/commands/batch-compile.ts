@@ -185,10 +185,10 @@ async function compileBatch(
   }
 }
 
-/** Report the compile outcome, keeping page-validation skips visible but non-fatal. */
+/** Report the compile outcome, keeping retryable skips visible but non-fatal. */
 function reportCompileOutcome(batchNum: number, result: CompileResult | void): void {
-  const validationErrors = countPageValidationErrors(result);
-  if (validationErrors === 0) {
+  const warnings = countNonBlockingCompileErrors(result);
+  if (warnings === 0) {
     output.status("+", output.success(`Batch ${batchNum} compiled successfully`));
     return;
   }
@@ -196,7 +196,7 @@ function reportCompileOutcome(batchNum: number, result: CompileResult | void): v
   output.status(
     "!",
     output.warn(
-      `Batch ${batchNum} compiled with ${validationErrors} page validation warning(s)`,
+      `Batch ${batchNum} compiled with ${warnings} retryable warning(s)`,
     ),
   );
 }
@@ -204,23 +204,46 @@ function reportCompileOutcome(batchNum: number, result: CompileResult | void): v
 /** Fail batch-compile when compile ran but produced blocking errors. */
 function assertBatchCompileProducedPages(result: CompileResult | void): void {
   if (!result) return;
-  const blockingErrors = result.errors.filter((error) => !isPageValidationError(error));
+  const blockingErrors = result.errors.filter(
+    (error) => !isNonBlockingCompileError(error),
+  );
   if (blockingErrors.length > 0) {
     throw new Error(blockingErrors.join("; "));
   }
-  if (result.compiled > 0 && result.pages.length === 0) {
+  if (hasUnexpectedEmptyCompile(result)) {
     throw new Error("Compile produced no wiki pages for the ingested batch.");
   }
 }
 
-/** Count validation-only page skips that should not stop later batches. */
-function countPageValidationErrors(result: CompileResult | void): number {
-  return result?.errors.filter(isPageValidationError).length ?? 0;
+/** Count retryable compile warnings that should not stop later batches. */
+function countNonBlockingCompileErrors(result: CompileResult | void): number {
+  return result?.errors.filter(isNonBlockingCompileError).length ?? 0;
+}
+
+/** Detect an empty compile result that was not explained by retryable warnings. */
+function hasUnexpectedEmptyCompile(result: CompileResult): boolean {
+  if (result.compiled === 0 || result.pages.length > 0) return false;
+  return result.errors.length === 0 || result.errors.some(isBlockingCompileError);
+}
+
+/** Return true for compile errors that should still stop batch-compile. */
+function isBlockingCompileError(error: string): boolean {
+  return !isNonBlockingCompileError(error);
+}
+
+/** Detect compiler warnings that are safe to retry on a later compile pass. */
+function isNonBlockingCompileError(error: string): boolean {
+  return isPageValidationError(error) || isNoConceptsError(error);
 }
 
 /** Detect the compiler's page validation skip message. */
 function isPageValidationError(error: string): boolean {
   return error.startsWith('Invalid page for "') && error.endsWith("failed validation");
+}
+
+/** Detect a source whose extraction returned no concepts and was marked retryable. */
+function isNoConceptsError(error: string): boolean {
+  return error.startsWith("No concepts extracted from ");
 }
 
 /** Validate folder path and return file list. */

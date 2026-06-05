@@ -50,6 +50,20 @@ async function expectBatchCompileFailure(pattern: RegExp): Promise<void> {
   expect(compileMock).toHaveBeenCalledTimes(1);
 }
 
+/** Run two single-file batches and verify both batches reached compile. */
+async function expectTwoBatchContinuation(): Promise<void> {
+  const { default: batchCompileCommand } = await import(
+    "../src/commands/batch-compile.js"
+  );
+  const inputDir = await seedBatchInput(2);
+
+  await batchCompileCommand(inputDir, { batch: 1 });
+
+  const sources = await readdir(path.join(root.dir, "sources"));
+  expect(sources).toHaveLength(2);
+  expect(compileMock).toHaveBeenCalledTimes(2);
+}
+
 describe("batch-compile failure handling", () => {
   it("rejects non-positive batch sizes before chunking", async () => {
     const { default: batchCompileCommand } = await import(
@@ -110,16 +124,7 @@ describe("batch-compile failure handling", () => {
         errors: [],
       });
 
-    const { default: batchCompileCommand } = await import(
-      "../src/commands/batch-compile.js"
-    );
-    const inputDir = await seedBatchInput(2);
-
-    await batchCompileCommand(inputDir, { batch: 1 });
-
-    const sources = await readdir(path.join(root.dir, "sources"));
-    expect(sources).toHaveLength(2);
-    expect(compileMock).toHaveBeenCalledTimes(2);
+    await expectTwoBatchContinuation();
   });
 
   it("fails fast when compile fails after ingesting a batch", async () => {
@@ -131,16 +136,25 @@ describe("batch-compile failure handling", () => {
     expect(sources).toHaveLength(1);
   });
 
-  it("fails fast when compile returns no generated pages for an ingested batch", async () => {
-    compileMock.mockResolvedValueOnce({
-      compiled: 1,
-      skipped: 0,
-      deleted: 0,
-      concepts: [],
-      pages: [],
-      errors: ["No concepts extracted from a.md"],
-    });
+  it("continues after retryable no-concepts extraction warnings", async () => {
+    compileMock
+      .mockResolvedValueOnce({
+        compiled: 1,
+        skipped: 0,
+        deleted: 0,
+        concepts: [],
+        pages: [],
+        errors: ["No concepts extracted from a.md"],
+      })
+      .mockResolvedValueOnce({
+        compiled: 1,
+        skipped: 1,
+        deleted: 0,
+        concepts: ["Recovered Page"],
+        pages: ["recovered-page"],
+        errors: [],
+      });
 
-    await expectBatchCompileFailure(/No concepts extracted from a\.md/);
+    await expectTwoBatchContinuation();
   });
 });
