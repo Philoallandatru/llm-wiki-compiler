@@ -20,6 +20,9 @@ import { useIngestWorkspaces } from "./fixtures/ingest-workspace.js";
 const workspaces = useIngestWorkspaces("unicode-ingest");
 const makeWorkspace = workspaces.makeWorkspace;
 
+/** CLI subprocess tests can exceed Vitest's default timeout on Windows. */
+const CLI_INTEGRATION_TIMEOUT_MS = 30_000;
+
 /**
  * Run a single non-ASCII ingest and assert the output filename in
  * sources/ matches what the Unicode-aware slugifier should produce. The
@@ -39,7 +42,9 @@ async function expectIngestProducesUnicodeFilename(
 }
 
 describe("ingest — non-ASCII filenames (#35)", () => {
-  it("CJK-named file is written under sources/ with a Unicode slug", async () => {
+  it("CJK-named file is written under sources/ with a Unicode slug", {
+    timeout: CLI_INTEGRATION_TIMEOUT_MS,
+  }, async () => {
     // Exactly one file, named after the CJK title — not the silent ".md" dotfile.
     await expectIngestProducesUnicodeFilename(
       "测试文档.md",
@@ -48,7 +53,9 @@ describe("ingest — non-ASCII filenames (#35)", () => {
     );
   });
 
-  it("Japanese-named file is written under sources/ with the original characters", async () => {
+  it("Japanese-named file is written under sources/ with the original characters", {
+    timeout: CLI_INTEGRATION_TIMEOUT_MS,
+  }, async () => {
     await expectIngestProducesUnicodeFilename(
       "こんにちは.md",
       "# こんにちは\n\nA Japanese-titled document.",
@@ -56,7 +63,9 @@ describe("ingest — non-ASCII filenames (#35)", () => {
     );
   });
 
-  it("two distinct CJK-named files do not collide on sources/.md", async () => {
+  it("two distinct CJK-named files do not collide on sources/.md", {
+    timeout: CLI_INTEGRATION_TIMEOUT_MS,
+  }, async () => {
     const { cwd: cwdA, fixturePath: pathA } = await makeWorkspace(
       "测试文档.md",
       "# A\n\nFirst Chinese doc.",
@@ -76,7 +85,9 @@ describe("ingest — non-ASCII filenames (#35)", () => {
     expect(files).toEqual(["另一个文档.md", "测试文档.md"]);
   });
 
-  it("title with no letters or numbers fails loudly with an actionable error", async () => {
+  it("title with no letters or numbers fails loudly with an actionable error", {
+    timeout: CLI_INTEGRATION_TIMEOUT_MS,
+  }, async () => {
     const { cwd, fixturePath } = await makeWorkspace(
       "🎉🎊.md",
       "# 🎉🎊\n\nA file whose title is purely emoji.",
