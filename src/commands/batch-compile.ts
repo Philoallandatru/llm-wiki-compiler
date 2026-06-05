@@ -15,6 +15,16 @@ import { createProjectContext } from "../utils/project-resolver.js";
 import { listDirectoryFiles, chunkArray } from "../utils/fs-helpers.js";
 import type { CompileOptions, CompileResult } from "../utils/types.js";
 
+/** Default batch size keeps interrupted runs from ingesting too many files ahead of compile. */
+export const DEFAULT_BATCH_SIZE = 2;
+
+/** Resolve and validate the batch size before chunking files. */
+function resolveBatchSize(batch?: number): number {
+  const batchSize = batch ?? DEFAULT_BATCH_SIZE;
+  if (Number.isInteger(batchSize) && batchSize > 0) return batchSize;
+  throw new Error(`Invalid batch size: ${String(batchSize)}. Use a positive integer.`);
+}
+
 /** Result of ingesting a single file in a batch. */
 interface BatchIngestResult {
   filename: string;
@@ -164,7 +174,7 @@ async function compileBatch(
   try {
     const result = await compileCommand(compileOptions, projectId);
     assertBatchCompileProducedPages(result);
-    output.status("+", output.success(`Batch ${batchNum} compiled successfully`));
+    reportCompileOutcome(batchNum, result);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     output.status("!", output.error(`Batch ${batchNum} compile failed: ${message}`));
@@ -175,15 +185,42 @@ async function compileBatch(
   }
 }
 
-/** Fail batch-compile when compile ran but produced no usable wiki pages. */
+/** Report the compile outcome, keeping page-validation skips visible but non-fatal. */
+function reportCompileOutcome(batchNum: number, result: CompileResult | void): void {
+  const validationErrors = countPageValidationErrors(result);
+  if (validationErrors === 0) {
+    output.status("+", output.success(`Batch ${batchNum} compiled successfully`));
+    return;
+  }
+
+  output.status(
+    "!",
+    output.warn(
+      `Batch ${batchNum} compiled with ${validationErrors} page validation warning(s)`,
+    ),
+  );
+}
+
+/** Fail batch-compile when compile ran but produced blocking errors. */
 function assertBatchCompileProducedPages(result: CompileResult | void): void {
   if (!result) return;
-  if (result.errors.length > 0) {
-    throw new Error(result.errors.join("; "));
+  const blockingErrors = result.errors.filter((error) => !isPageValidationError(error));
+  if (blockingErrors.length > 0) {
+    throw new Error(blockingErrors.join("; "));
   }
   if (result.compiled > 0 && result.pages.length === 0) {
     throw new Error("Compile produced no wiki pages for the ingested batch.");
   }
+}
+
+/** Count validation-only page skips that should not stop later batches. */
+function countPageValidationErrors(result: CompileResult | void): number {
+  return result?.errors.filter(isPageValidationError).length ?? 0;
+}
+
+/** Detect the compiler's page validation skip message. */
+function isPageValidationError(error: string): boolean {
+  return error.startsWith('Invalid page for "') && error.endsWith("failed validation");
 }
 
 /** Validate folder path and return file list. */
@@ -210,7 +247,7 @@ async function prepareBatchCompile(
   folderPath: string,
   options: BatchCompileOptions,
 ): Promise<BatchCompileSetup> {
-  const batchSize = options.batch ?? 5;
+  const batchSize = resolveBatchSize(options.batch);
   const files = await validateAndListFiles(folderPath);
   const { paths, project } = await createProjectContext(
     process.cwd(),

@@ -23,20 +23,19 @@ beforeEach(() => {
   compileMock.mockReset();
 });
 
-/** Seed an input directory with two source files that become separate batches. */
-async function seedBatchInput(): Promise<string> {
+/** Seed an input directory with source files that can become separate batches. */
+async function seedBatchInput(fileCount = 2): Promise<string> {
   const inputDir = path.join(root.dir, "input");
   await mkdir(inputDir, { recursive: true });
-  await writeFile(
-    path.join(inputDir, "a.md"),
-    "# A\n\nA long enough source body to be accepted by ingest during batch tests.",
-    "utf-8",
-  );
-  await writeFile(
-    path.join(inputDir, "b.md"),
-    "# B\n\nAnother long enough source body that should not be ingested after failure.",
-    "utf-8",
-  );
+
+  for (let index = 0; index < fileCount; index++) {
+    await writeFile(
+      path.join(inputDir, `${String.fromCharCode(97 + index)}.md`),
+      `# File ${index + 1}\n\nA long enough source body for batch ingest tests.`,
+      "utf-8",
+    );
+  }
+
   return inputDir;
 }
 
@@ -52,6 +51,77 @@ async function expectBatchCompileFailure(pattern: RegExp): Promise<void> {
 }
 
 describe("batch-compile failure handling", () => {
+  it("rejects non-positive batch sizes before chunking", async () => {
+    const { default: batchCompileCommand } = await import(
+      "../src/commands/batch-compile.js"
+    );
+    const inputDir = await seedBatchInput(1);
+
+    await expect(batchCompileCommand(inputDir, { batch: 0 })).rejects.toThrow(
+      /Invalid batch size: 0/,
+    );
+    expect(compileMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects invalid batch sizes before chunking", async () => {
+    const { default: batchCompileCommand } = await import(
+      "../src/commands/batch-compile.js"
+    );
+    const inputDir = await seedBatchInput(1);
+
+    await expect(batchCompileCommand(inputDir, { batch: NaN })).rejects.toThrow(
+      /Invalid batch size: NaN/,
+    );
+    expect(compileMock).not.toHaveBeenCalled();
+  });
+
+  it("uses two files as the default batch size", async () => {
+    compileMock.mockRejectedValueOnce(new Error("provider timeout"));
+
+    const { default: batchCompileCommand } = await import(
+      "../src/commands/batch-compile.js"
+    );
+    const inputDir = await seedBatchInput(3);
+
+    await expect(batchCompileCommand(inputDir, {})).rejects.toThrow(
+      /Batch 1 failed after ingest/,
+    );
+
+    const sources = await readdir(path.join(root.dir, "sources"));
+    expect(sources).toHaveLength(2);
+  });
+
+  it("continues after page validation errors from a compiled batch", async () => {
+    compileMock
+      .mockResolvedValueOnce({
+        compiled: 1,
+        skipped: 0,
+        deleted: 0,
+        concepts: ["Bad Page"],
+        pages: ["bad-page"],
+        errors: ['Invalid page for "Bad Page" — failed validation'],
+      })
+      .mockResolvedValueOnce({
+        compiled: 1,
+        skipped: 1,
+        deleted: 0,
+        concepts: ["Good Page"],
+        pages: ["good-page"],
+        errors: [],
+      });
+
+    const { default: batchCompileCommand } = await import(
+      "../src/commands/batch-compile.js"
+    );
+    const inputDir = await seedBatchInput(2);
+
+    await batchCompileCommand(inputDir, { batch: 1 });
+
+    const sources = await readdir(path.join(root.dir, "sources"));
+    expect(sources).toHaveLength(2);
+    expect(compileMock).toHaveBeenCalledTimes(2);
+  });
+
   it("fails fast when compile fails after ingesting a batch", async () => {
     compileMock.mockRejectedValueOnce(new Error("provider timeout"));
 

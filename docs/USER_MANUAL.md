@@ -126,7 +126,7 @@ llmwiki ingest-session ./sessions/
 导入多个文件并分批编译：
 
 ```bash
-llmwiki batch-compile ./documents --batch 5
+llmwiki batch-compile ./documents --batch 2
 ```
 
 什么时候用 `batch-compile`：
