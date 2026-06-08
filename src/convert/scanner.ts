@@ -99,7 +99,7 @@ function matchesExcludePattern(filePath: string, patterns: string[]): boolean {
   return patterns.some((pattern) => pattern.length > 0 && normalized.includes(pattern));
 }
 
-/** Return true when a directory name matches one of the exclusion patterns. */
+/** Return true when a directory name exactly matches one of the exclusion patterns. */
 function matchesExcludeDirPattern(dirName: string, patterns: string[]): boolean {
   return patterns.some((pattern) => pattern.length > 0 && dirName === pattern);
 }

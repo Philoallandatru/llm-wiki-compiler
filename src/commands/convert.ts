@@ -55,15 +55,12 @@ export default async function convertCommand(
     for (const [index, sourcePath] of scan.candidates.entries()) {
       progress.update(index + 1, sourcePath);
       await convertOneFile(inputRoot, sourcePath, workOptions, summary);
-
-      if (normalized.validate && summary.outputs.length > 0) {
-        await validateLastOutput(summary, validations);
-      }
     }
 
     progress.finish();
 
     if (normalized.validate) {
+      await validateAllOutputs(summary, validations);
       await handleValidationReport(normalized, validations, summary);
     }
 
@@ -284,20 +281,19 @@ function assertHasContent(body: string): void {
   throw new Error("No extractable content found.");
 }
 
-/** Validate the most recently converted output file. */
-async function validateLastOutput(
+/** Validate all converted output files in batch. */
+async function validateAllOutputs(
   summary: ConvertSummary,
   validations: Map<string, ValidationResult>,
 ): Promise<void> {
-  const lastOutput = summary.outputs[summary.outputs.length - 1];
-  if (!lastOutput) return;
+  for (const output of summary.outputs) {
+    const content = await readFile(output.outputPath, "utf-8");
+    const result = validateMarkdown(content, output.outputPath);
+    validations.set(output.outputPath, result);
 
-  const content = await readFile(lastOutput.outputPath, "utf-8");
-  const result = validateMarkdown(content, lastOutput.outputPath);
-  validations.set(lastOutput.outputPath, result);
-
-  if (!result.valid || result.issues.length > 0) {
-    summary.validationIssues = [...(summary.validationIssues ?? []), ...result.issues];
+    if (!result.valid || result.issues.length > 0) {
+      summary.validationIssues = [...(summary.validationIssues ?? []), ...result.issues];
+    }
   }
 }
 
@@ -323,9 +319,10 @@ function groupBySeverity(issues: ConvertSummary["validationIssues"]): {
   info: number;
 } {
   if (!issues) return { error: 0, warning: 0, info: 0 };
-  return {
-    error: issues.filter((i) => i.severity === "error").length,
-    warning: issues.filter((i) => i.severity === "warning").length,
-    info: issues.filter((i) => i.severity === "info").length,
-  };
+
+  const counts = { error: 0, warning: 0, info: 0 };
+  for (const issue of issues) {
+    counts[issue.severity]++;
+  }
+  return counts;
 }

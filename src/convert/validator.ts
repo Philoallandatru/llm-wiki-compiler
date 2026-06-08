@@ -26,8 +26,11 @@ export function validateMarkdown(content: string, filePath: string): ValidationR
   const issues: ValidationIssue[] = [];
 
   checkEmptyContent(content, filePath, issues);
-  checkMalformedFences(content, filePath, issues);
-  checkExcessiveLineLength(content, filePath, issues);
+
+  // Split content once for line-based checks
+  const lines = content.split(/\r?\n/);
+  checkMalformedFences(lines, filePath, issues);
+  checkExcessiveLineLength(lines, filePath, issues);
   checkEncodingIssues(content, filePath, issues);
 
   const hasErrors = issues.some((issue) => issue.severity === "error");
@@ -62,8 +65,7 @@ function checkEmptyContent(content: string, filePath: string, issues: Validation
  * Detect unclosed or malformed code fences in Markdown.
  * Unbalanced fences break rendering in most Markdown viewers.
  */
-function checkMalformedFences(content: string, filePath: string, issues: ValidationIssue[]): void {
-  const lines = content.split(/\r?\n/);
+function checkMalformedFences(lines: string[], filePath: string, issues: ValidationIssue[]): void {
   let fenceDepth = 0;
 
   for (const line of lines) {
@@ -87,11 +89,10 @@ function checkMalformedFences(content: string, filePath: string, issues: Validat
  * Lines over 10k chars often mean the converter didn't break content properly.
  */
 function checkExcessiveLineLength(
-  content: string,
+  lines: string[],
   filePath: string,
   issues: ValidationIssue[],
 ): void {
-  const lines = content.split(/\r?\n/);
   const longLines = lines.filter((line) => line.length > MAX_LINE_LENGTH);
 
   if (longLines.length > 0) {
@@ -157,6 +158,7 @@ export function generateValidationSummary(
   const allIssues: ValidationIssue[] = [];
   let validFiles = 0;
   let invalidFiles = 0;
+  const issuesBySeverity = { error: 0, warning: 0, info: 0 };
 
   for (const result of validations.values()) {
     if (result.valid) {
@@ -165,13 +167,12 @@ export function generateValidationSummary(
       invalidFiles++;
     }
     allIssues.push(...result.issues);
-  }
 
-  const issuesBySeverity = {
-    error: allIssues.filter((i) => i.severity === "error").length,
-    warning: allIssues.filter((i) => i.severity === "warning").length,
-    info: allIssues.filter((i) => i.severity === "info").length,
-  };
+    // Count by severity in single pass
+    for (const issue of result.issues) {
+      issuesBySeverity[issue.severity]++;
+    }
+  }
 
   return {
     totalFiles: validations.size,
