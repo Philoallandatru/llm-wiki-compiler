@@ -6,7 +6,7 @@
  * converted documents so later ingest/compile runs stay manageable.
  */
 
-import { mkdir, mkdtemp, rename, rm, writeFile } from "fs/promises";
+import { mkdir, mkdtemp, rename, rm, writeFile, readFile } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
 import { buildFrontmatter, parseFrontmatterStatus } from "../utils/markdown.js";
@@ -15,6 +15,12 @@ import { convertFileToMarkdown } from "../convert/converters.js";
 import { normalizeConvertOptions } from "../convert/options.js";
 import { buildOutputFilename, buildOutputStem, isPathInside } from "../convert/path-utils.js";
 import { scanConvertInput } from "../convert/scanner.js";
+import { createProgressTracker } from "../convert/progress.js";
+import {
+  validateMarkdown,
+  generateValidationSummary,
+  type ValidationResult,
+} from "../convert/validator.js";
 import type {
   ConvertedFile,
   ConvertFailure,
@@ -39,14 +45,30 @@ export default async function convertCommand(
   printPlan(scan.candidates, scan.skipped.length);
   const tempOutDir = await createTemporaryOutputDir(normalized.outDir);
   const workOptions = { ...normalized, outDir: tempOutDir };
+
+  const progress = createProgressTracker();
+  const validations = new Map<string, ValidationResult>();
+
   try {
-    for (const sourcePath of scan.candidates) {
+    progress.start(scan.candidates.length);
+
+    for (const [index, sourcePath] of scan.candidates.entries()) {
+      progress.update(index + 1, sourcePath);
       await convertOneFile(inputRoot, sourcePath, workOptions, summary);
     }
+
+    progress.finish();
+
+    if (normalized.validate) {
+      await validateAllOutputs(summary, validations);
+      await handleValidationReport(normalized, validations, summary);
+    }
+
     await publishConvertedOutput(summary, tempOutDir, normalized.outDir);
     printSummary(summary, normalized.outDir);
     return summary;
   } catch (error) {
+    progress.finish();
     await cleanupTemporaryOutput(tempOutDir);
     printSummary(summary, normalized.outDir);
     throw error;
@@ -214,6 +236,15 @@ function printSummary(summary: ConvertSummary, outDir: string): void {
   console.log(`Written Markdown files: ${summary.written}`);
   console.log(`Skipped files: ${summary.skipped}`);
   console.log(`Failed conversions: ${summary.failed}`);
+
+  if (summary.validationIssues && summary.validationIssues.length > 0) {
+    console.log(`\nValidation issues: ${summary.validationIssues.length}`);
+    const bySeverity = groupBySeverity(summary.validationIssues);
+    if (bySeverity.error > 0) console.log(`  Errors: ${bySeverity.error}`);
+    if (bySeverity.warning > 0) console.log(`  Warnings: ${bySeverity.warning}`);
+    if (bySeverity.info > 0) console.log(`  Info: ${bySeverity.info}`);
+  }
+
   printFailures(summary.failures);
 }
 
@@ -248,4 +279,50 @@ function bodyForChunking(converted: ConvertedFile): string {
 function assertHasContent(body: string): void {
   if (body.trim().length > 0) return;
   throw new Error("No extractable content found.");
+}
+
+/** Validate all converted output files in batch. */
+async function validateAllOutputs(
+  summary: ConvertSummary,
+  validations: Map<string, ValidationResult>,
+): Promise<void> {
+  for (const output of summary.outputs) {
+    const content = await readFile(output.outputPath, "utf-8");
+    const result = validateMarkdown(content, output.outputPath);
+    validations.set(output.outputPath, result);
+
+    if (!result.valid || result.issues.length > 0) {
+      summary.validationIssues = [...(summary.validationIssues ?? []), ...result.issues];
+    }
+  }
+}
+
+/** Write validation report and update summary if validation is enabled. */
+async function handleValidationReport(
+  options: NormalizedConvertOptions,
+  validations: Map<string, ValidationResult>,
+  summary: ConvertSummary,
+): Promise<void> {
+  const validationSummary = generateValidationSummary(validations);
+
+  if (options.validationReportPath) {
+    const reportContent = JSON.stringify(validationSummary, null, 2);
+    await writeFile(options.validationReportPath, reportContent, "utf-8");
+    console.log(`\nValidation report written to: ${options.validationReportPath}`);
+  }
+}
+
+/** Group validation issues by severity for summary display. */
+function groupBySeverity(issues: ConvertSummary["validationIssues"]): {
+  error: number;
+  warning: number;
+  info: number;
+} {
+  if (!issues) return { error: 0, warning: 0, info: 0 };
+
+  const counts = { error: 0, warning: 0, info: 0 };
+  for (const issue of issues) {
+    counts[issue.severity]++;
+  }
+  return counts;
 }

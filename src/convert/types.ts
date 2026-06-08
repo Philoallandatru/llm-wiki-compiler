@@ -60,6 +60,12 @@ export interface ConvertOptions {
   include?: string;
   /** Comma-separated path substrings to skip during recursive scanning. */
   exclude?: string;
+  /** Comma-separated directory names to skip during recursive scanning. */
+  excludeDirs?: string;
+  /** Enable quality validation of converted Markdown. */
+  validate?: boolean;
+  /** Path to write detailed validation report as JSON. */
+  validationReport?: string;
 }
 
 export interface NormalizedConvertOptions {
@@ -68,6 +74,9 @@ export interface NormalizedConvertOptions {
   chunkSize: number;
   includeExtensions: Set<string> | null;
   excludePatterns: string[];
+  excludeDirPatterns: string[];
+  validate: boolean;
+  validationReportPath: string | null;
 }
 
 export interface ScanResult {
@@ -99,6 +108,14 @@ export interface ConvertFailure {
   error: string;
 }
 
+export interface ValidationIssue {
+  severity: "error" | "warning" | "info";
+  type: string;
+  message: string;
+  file: string;
+  details?: unknown;
+}
+
 export interface ConvertSummary {
   scanned: number;
   written: number;
@@ -107,4 +124,5 @@ export interface ConvertSummary {
   outputs: ConvertOutput[];
   skippedFiles: ConvertSkipped[];
   failures: ConvertFailure[];
+  validationIssues?: ValidationIssue[];
 }
