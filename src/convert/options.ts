@@ -25,6 +25,11 @@ export function normalizeConvertOptions(options: ConvertOptions): NormalizedConv
     chunkSize: normalizeChunkSize(options.chunkSize),
     includeExtensions: normalizeIncludeExtensions(options.include),
     excludePatterns: normalizeExcludePatterns(options.exclude),
+    excludeDirPatterns: normalizeExcludeDirPatterns(options.excludeDirs),
+    validate: options.validate ?? false,
+    validationReportPath: options.validationReport
+      ? path.resolve(options.validationReport)
+      : null,
   };
 }
 
@@ -55,7 +60,17 @@ function normalizeIncludeExtensions(rawInclude: string | undefined): Set<string>
 
 /** Parse custom scanner skip patterns. */
 function normalizeExcludePatterns(rawExclude: string | undefined): string[] {
-  return (rawExclude ?? "")
+  return parseCommaSeparatedPatterns(rawExclude);
+}
+
+/** Parse directory name exclusion patterns. */
+function normalizeExcludeDirPatterns(rawExclude: string | undefined): string[] {
+  return parseCommaSeparatedPatterns(rawExclude);
+}
+
+/** Parse comma-separated patterns and normalize to lowercase. */
+function parseCommaSeparatedPatterns(rawPatterns: string | undefined): string[] {
+  return (rawPatterns ?? "")
     .split(",")
     .map((item) => item.trim().toLowerCase())
     .filter((item) => item.length > 0);

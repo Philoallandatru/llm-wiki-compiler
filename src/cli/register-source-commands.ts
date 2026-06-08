@@ -17,6 +17,9 @@ interface ConvertCliOptions {
   chunkSize?: number;
   include?: string;
   exclude?: string;
+  excludeDirs?: string;
+  validate?: boolean;
+  validationReport?: string;
 }
 
 /** Register ingest, ingest-session, and convert commands. */
@@ -59,6 +62,9 @@ function registerConvertCommand(program: Command): void {
     .option("--chunk-size <chars>", "Maximum body characters per Markdown output file (default: 100000)", parseInteger)
     .option("--include <extensions>", "Comma-separated extensions to include, e.g. .txt,.pdf")
     .option("--exclude <patterns>", "Comma-separated path substrings to skip")
+    .option("--exclude-dirs <patterns>", "Comma-separated directory names to skip (e.g. tests,docs)")
+    .option("--validate", "Validate converted Markdown quality")
+    .option("--validation-report <file>", "Write detailed validation report to JSON file")
     .action((folder: string, options: ConvertCliOptions) =>
       runCliAction(async () => {
         await convertCommand(folder, options);

@@ -63,6 +63,7 @@ function shouldSkipDirectory(
   if (isPathInside(dirPath, options.outDir)) return true;
   const name = path.basename(dirPath).toLowerCase();
   if (dirPath !== root && defaultExcludedDirs.has(name)) return true;
+  if (matchesExcludeDirPattern(name, options.excludeDirPatterns)) return true;
   return matchesExcludePattern(dirPath, options.excludePatterns);
 }
 
@@ -96,4 +97,9 @@ async function addFileCandidate(
 function matchesExcludePattern(filePath: string, patterns: string[]): boolean {
   const normalized = filePath.toLowerCase();
   return patterns.some((pattern) => pattern.length > 0 && normalized.includes(pattern));
+}
+
+/** Return true when a directory name matches one of the exclusion patterns. */
+function matchesExcludeDirPattern(dirName: string, patterns: string[]): boolean {
+  return patterns.some((pattern) => pattern.length > 0 && dirName === pattern);
 }
