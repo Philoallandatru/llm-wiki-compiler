@@ -7,22 +7,11 @@
  */
 
 import { readFile } from "fs/promises";
-import path from "path";
 import Anthropic from "@anthropic-ai/sdk";
 import { buildAnthropicClientOptions } from "../providers/anthropic.js";
 import { resolveAnthropicAuthFromEnv, resolveAnthropicBaseURLFromEnv, resolveAnthropicModelFromEnv } from "../utils/claude-settings.js";
 import { IMAGE_DESCRIBE_MAX_TOKENS, PROVIDER_MODELS } from "../utils/constants.js";
-
-/** Mime types supported by Anthropic vision. */
-type AnthropicImageMediaType = "image/jpeg" | "image/png" | "image/gif" | "image/webp";
-
-const EXTENSION_TO_MIME: Record<string, AnthropicImageMediaType> = {
-  ".jpg": "image/jpeg",
-  ".jpeg": "image/jpeg",
-  ".png": "image/png",
-  ".gif": "image/gif",
-  ".webp": "image/webp",
-};
+import { imageMimeTypeForPath, type VisionImageMediaType } from "./image-data.js";
 
 /** Send a local image and prompt to Anthropic vision. */
 export async function runAnthropicImagePrompt(
@@ -35,18 +24,10 @@ export async function runAnthropicImagePrompt(
   const response = await buildClient().messages.create({
     model: resolveAnthropicModelFromEnv() ?? PROVIDER_MODELS.anthropic,
     max_tokens: IMAGE_DESCRIBE_MAX_TOKENS,
-    messages: [imageMessage(imageData, mimeTypeForPath(filePath), prompt)],
+    messages: [imageMessage(imageData, imageMimeTypeForPath(filePath), prompt)],
   });
   const textBlock = response.content.find((block) => block.type === "text");
   return textBlock?.type === "text" ? textBlock.text : "";
-}
-
-/** Return the MIME type for a supported local image path. */
-function mimeTypeForPath(filePath: string): AnthropicImageMediaType {
-  const extension = path.extname(filePath).toLowerCase();
-  const mimeType = EXTENSION_TO_MIME[extension];
-  if (mimeType) return mimeType;
-  throw new Error(`Unsupported image extension "${extension}". Supported: ${Object.keys(EXTENSION_TO_MIME).join(", ")}`);
 }
 
 /** Build an Anthropic SDK client from current environment config. */
@@ -70,7 +51,7 @@ function assertAnthropicVisionProvider(featureLabel: string): void {
 /** Build one Anthropic user message containing an image and task prompt. */
 function imageMessage(
   imageData: string,
-  mimeType: AnthropicImageMediaType,
+  mimeType: VisionImageMediaType,
   prompt: string,
 ): Anthropic.MessageCreateParams["messages"][number] {
   return {

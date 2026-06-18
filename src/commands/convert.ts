@@ -26,6 +26,7 @@ import type {
   ConvertFailure,
   ConvertOptions,
   ConvertOutput,
+  ConvertSkipped,
   ConvertSummary,
   NormalizedConvertOptions,
 } from "../convert/types.js";
@@ -170,9 +171,31 @@ async function convertOneFile(
     summary.outputs.push(...outputs);
     summary.written += outputs.length;
   } catch (error) {
+    if (isSkippableImageConversion(sourcePath)) {
+      recordSkippedConversion(summary, sourcePath, error);
+      return;
+    }
     summary.failed += 1;
     summary.failures.push({ filePath: sourcePath, error: errorMessage(error) });
   }
+}
+
+/** Record a conversion-time skip that should not block publishing outputs. */
+function recordSkippedConversion(
+  summary: ConvertSummary,
+  sourcePath: string,
+  error: unknown,
+): void {
+  summary.skipped += 1;
+  summary.skippedFiles.push({
+    filePath: sourcePath,
+    reason: `image conversion skipped: ${errorMessage(error)}`,
+  });
+}
+
+/** Image OCR depends on external vision APIs, so failures should not stop conversion. */
+function isSkippableImageConversion(sourcePath: string): boolean {
+  return [".jpg", ".jpeg", ".png", ".webp"].includes(path.extname(sourcePath).toLowerCase());
 }
 
 /** Write converted content, splitting long bodies into numbered parts. */
@@ -245,7 +268,17 @@ function printSummary(summary: ConvertSummary, outDir: string): void {
     if (bySeverity.info > 0) console.log(`  Info: ${bySeverity.info}`);
   }
 
+  printSkippedFiles(summary.skippedFiles);
   printFailures(summary.failures);
+}
+
+/** Print skipped files with reasons so non-blocking image failures stay visible. */
+function printSkippedFiles(skippedFiles: ConvertSkipped[]): void {
+  if (skippedFiles.length === 0) return;
+  console.log("\nSkipped:");
+  for (const skipped of skippedFiles) {
+    console.log(`- ${skipped.filePath}: ${skipped.reason}`);
+  }
 }
 
 /** Print failed conversions without overwhelming successful runs. */

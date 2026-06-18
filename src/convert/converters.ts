@@ -110,7 +110,7 @@ function isTableExtension(extension: string): boolean {
   return [".csv", ".tsv", ".xlsx", ".xls"].includes(extension);
 }
 
-/** Return true for image extensions supported by Anthropic vision OCR. */
+/** Return true for image extensions supported by vision OCR. */
 function isImageExtension(extension: string): boolean {
   return [".jpg", ".jpeg", ".png", ".webp"].includes(extension);
 }

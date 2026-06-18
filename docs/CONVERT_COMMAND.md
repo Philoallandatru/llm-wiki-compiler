@@ -35,7 +35,7 @@ llmwiki batch-compile ./converted-markdown --batch 2
 | `.pptx` | Extracted from slide XML, preserving slide boundaries as Markdown headings. Empty or unreadable decks fail. |
 | `.csv`, `.tsv` | Parsed as tabular data and rendered as Markdown tables. |
 | `.xlsx`, `.xls` | Parsed as workbooks and rendered as Markdown tables. Multi-sheet workbooks include sheet headings and `contexts` metadata. |
-| `.png`, `.jpg`, `.jpeg`, `.webp` | OCR is performed with Anthropic vision and written as Markdown text. Images with no visible text fail. |
+| `.png`, `.jpg`, `.jpeg`, `.webp` | OCR is performed with Anthropic vision or an OpenAI-compatible vision endpoint and written as Markdown text. Images that cannot be OCRed are skipped. |
 | Source code | Common code files such as `.ts`, `.js`, `.py`, `.go`, `.rs`, `.java`, `.css`, and `.sql` are fenced as Markdown code blocks. |
 | Config/data text | `.json`, `.jsonl`, `.yaml`, `.yml`, `.toml`, `.ini`, `.env`, and `.xml` are fenced with source metadata. |
 | Logs | `.log`, `.out`, and `.err` are fenced as Markdown-safe text. |
@@ -128,10 +128,21 @@ Convert images with Anthropic vision OCR:
 LLMWIKI_PROVIDER=anthropic ANTHROPIC_API_KEY=... llmwiki convert ./screenshots --out ./screenshots-md
 ```
 
-Image OCR currently uses Anthropic vision rather than local OCR. It transcribes
-visible text only; images with no visible text are reported as failures. If the
-active provider is not Anthropic or credentials are missing, image conversion
-fails clearly and the final output folder is not created.
+Convert images with an OpenAI-compatible vision endpoint:
+
+```bash
+LLMWIKI_PROVIDER=openai \
+OPENAI_API_KEY=sk-local \
+OPENAI_BASE_URL=http://localhost:8080/v1 \
+LLMWIKI_MODEL=vision-model \
+llmwiki convert ./screenshots --out ./screenshots-md
+```
+
+Image OCR transcribes visible text only. If an image has no visible text, the
+active provider is not vision-capable, or the OCR endpoint returns an error,
+that image is skipped and the rest of the conversion continues. Non-image
+conversion failures still fail the command and prevent publishing partial
+outputs.
 
 ## Output Shape
 
