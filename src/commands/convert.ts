@@ -101,9 +101,6 @@ async function publishConvertedOutput(
   tempOutDir: string,
   finalOutDir: string,
 ): Promise<void> {
-  if (summary.failed > 0) {
-    throw new Error("One or more files failed to convert.");
-  }
   await rename(tempOutDir, finalOutDir);
   rewriteOutputPaths(summary, tempOutDir, finalOutDir);
 }
@@ -171,12 +168,7 @@ async function convertOneFile(
     summary.outputs.push(...outputs);
     summary.written += outputs.length;
   } catch (error) {
-    if (isSkippableImageConversion(sourcePath)) {
-      recordSkippedConversion(summary, sourcePath, error);
-      return;
-    }
-    summary.failed += 1;
-    summary.failures.push({ filePath: sourcePath, error: errorMessage(error) });
+    recordSkippedConversion(summary, sourcePath, error);
   }
 }
 
@@ -189,13 +181,8 @@ function recordSkippedConversion(
   summary.skipped += 1;
   summary.skippedFiles.push({
     filePath: sourcePath,
-    reason: `image conversion skipped: ${errorMessage(error)}`,
+    reason: `conversion skipped: ${errorMessage(error)}`,
   });
-}
-
-/** Image OCR depends on external vision APIs, so failures should not stop conversion. */
-function isSkippableImageConversion(sourcePath: string): boolean {
-  return [".jpg", ".jpeg", ".png", ".webp"].includes(path.extname(sourcePath).toLowerCase());
 }
 
 /** Write converted content, splitting long bodies into numbered parts. */
@@ -258,7 +245,7 @@ function printSummary(summary: ConvertSummary, outDir: string): void {
   console.log(`Scanned: ${summary.scanned}`);
   console.log(`Written Markdown files: ${summary.written}`);
   console.log(`Skipped files: ${summary.skipped}`);
-  console.log(`Failed conversions: ${summary.failed}`);
+  if (summary.failed > 0) console.log(`Failed conversions: ${summary.failed}`);
 
   if (summary.validationIssues && summary.validationIssues.length > 0) {
     console.log(`\nValidation issues: ${summary.validationIssues.length}`);
@@ -272,7 +259,7 @@ function printSummary(summary: ConvertSummary, outDir: string): void {
   printFailures(summary.failures);
 }
 
-/** Print skipped files with reasons so non-blocking image failures stay visible. */
+/** Print skipped files with reasons so per-file conversion problems stay visible. */
 function printSkippedFiles(skippedFiles: ConvertSkipped[]): void {
   if (skippedFiles.length === 0) return;
   console.log("\nSkipped:");

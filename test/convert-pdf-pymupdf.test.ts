@@ -3,17 +3,17 @@
  *
  * PyMuPDF is an optional runtime dependency outside npm's control. This test
  * exercises the real PDF conversion path when Python can import `fitz`, and
- * otherwise verifies that users get a clear conversion failure without a
- * published output folder.
+ * otherwise verifies that users get a clear skipped-file reason while other
+ * converted files can still be published.
  */
 
 import { describe, expect, it, vi } from "vitest";
-import { existsSync } from "fs";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import { mkdir, readdir, readFile, writeFile } from "fs/promises";
 import path from "path";
 import convertCommand from "../src/commands/convert.js";
+import { expectPublishedSingleSkip } from "./fixtures/convert-assertions.js";
 import { useTempRoot } from "./fixtures/temp-root.js";
 
 const execFileAsync = promisify(execFile);
@@ -57,16 +57,17 @@ async function readSingleOutput(outDir: string): Promise<string> {
 }
 
 describe("convert PDF with PyMuPDF", () => {
-  it("converts a sample PDF or fails clearly when PyMuPDF is unavailable", async () => {
+  it("converts a sample PDF or skips it clearly when PyMuPDF is unavailable", async () => {
     vi.spyOn(console, "log").mockImplementation(() => undefined);
     const inputDir = await seedPdfInput();
     const outDir = path.join(root.dir, "pdf-output");
 
     if (!(await hasPyMuPDF())) {
-      await expect(convertCommand(inputDir, { out: outDir })).rejects.toThrow(
-        /One or more files failed/,
-      );
-      expect(existsSync(outDir)).toBe(false);
+      const summary = await convertCommand(inputDir, { out: outDir });
+
+      expectPublishedSingleSkip(summary, outDir, {
+        reasonIncludes: "PyMuPDF PDF conversion failed",
+      });
       return;
     }
 

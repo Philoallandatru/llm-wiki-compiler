@@ -30,9 +30,9 @@ llmwiki batch-compile ./converted-markdown --batch 2
 | `.md` | Passed through as Markdown. Long Markdown files can still be chunked. |
 | `.txt` | Written as Markdown with source metadata frontmatter. |
 | `.pdf` | Extracted with PyMuPDF and written as Markdown with source metadata. |
-| `.html`, `.htm` | Extracted with Readability and converted with Turndown. Malformed-but-readable HTML is accepted; empty or no-readable-content HTML fails. |
-| `.docx` | Extracted from Office Open XML paragraphs and written as Markdown with source metadata. Empty or unreadable documents fail. |
-| `.pptx` | Extracted from slide XML, preserving slide boundaries as Markdown headings. Empty or unreadable decks fail. |
+| `.html`, `.htm` | Extracted with Readability and converted with Turndown. Malformed-but-readable HTML is accepted; empty or no-readable-content HTML is skipped with a reason. |
+| `.docx` | Extracted from Office Open XML paragraphs and written as Markdown with source metadata. Empty or unreadable documents are skipped with a reason. |
+| `.pptx` | Extracted from slide XML, preserving slide boundaries as Markdown headings. Empty or unreadable decks are skipped with a reason. |
 | `.csv`, `.tsv` | Parsed as tabular data and rendered as Markdown tables. |
 | `.xlsx`, `.xls` | Parsed as workbooks and rendered as Markdown tables. Multi-sheet workbooks include sheet headings and `contexts` metadata. |
 | `.png`, `.jpg`, `.jpeg`, `.webp` | OCR is performed with Anthropic vision or an OpenAI-compatible vision endpoint and written as Markdown text. Images that cannot be OCRed are skipped. |
@@ -61,11 +61,11 @@ llmwiki convert <folder> --out <folder> [options]
 The scanner skips `.git`, `node_modules`, `dist`, and the output folder by
 default.
 
-`llmwiki convert` writes to a temporary output folder first. If every supported
-file converts successfully, the final `--out` folder is published. If any
-supported file fails, the command finishes the scan, prints the failures, exits
-non-zero, and does not publish the final output folder. This avoids accidentally
-running `batch-compile` against partial converted output.
+`llmwiki convert` writes to a temporary output folder first, then publishes that
+folder to the final `--out` path. A file that cannot be converted is skipped
+with a visible reason, and successfully converted files are still published.
+Fatal setup or publish errors, such as an invalid `--out` path or an existing
+output folder, still exit non-zero.
 
 ## Examples
 
@@ -119,8 +119,9 @@ If Python is not on your `PATH`, set `PYMUPDF_PYTHON` to the Python executable:
 PYMUPDF_PYTHON=/path/to/python llmwiki convert ./papers --out ./papers-md
 ```
 
-If PyMuPDF is not installed or the selected Python cannot import `fitz`, PDF
-conversion fails with a clear error and the final output folder is not created.
+If PyMuPDF is not installed, the selected Python cannot import `fitz`, or a PDF
+has no extractable text, that PDF is skipped with a clear reason and the rest of
+the conversion continues.
 
 Convert images with Anthropic vision OCR:
 
@@ -140,9 +141,9 @@ llmwiki convert ./screenshots --out ./screenshots-md
 
 Image OCR transcribes visible text only. If an image has no visible text, the
 active provider is not vision-capable, or the OCR endpoint returns an error,
-that image is skipped and the rest of the conversion continues. Non-image
-conversion failures still fail the command and prevent publishing partial
-outputs.
+that image is skipped and the rest of the conversion continues. The same
+per-file skip behavior applies to other conversion failures, so successful
+outputs are still published.
 
 ## Output Shape
 
