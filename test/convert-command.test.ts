@@ -7,10 +7,10 @@
  */
 
 import { describe, expect, it, vi } from "vitest";
-import { existsSync } from "fs";
 import { mkdir, readdir, readFile, writeFile } from "fs/promises";
 import path from "path";
 import convertCommand from "../src/commands/convert.js";
+import { expectPublishedSingleSkip } from "./fixtures/convert-assertions.js";
 import { useTempRoot } from "./fixtures/temp-root.js";
 
 const root = useTempRoot();
@@ -126,17 +126,19 @@ describe("convert command", () => {
     expect(bodies).toEqual(expect.arrayContaining(["# First\n", "# Second\n"]));
   });
 
-  it("reports empty supported files as failed conversions", async () => {
+  it("skips empty supported files without failing the whole conversion", async () => {
     vi.spyOn(console, "log").mockImplementation(() => undefined);
     const inputDir = await seedSingleFileInput("empty-input", "empty.txt", "");
     const outDir = path.join(root.dir, "empty-output");
 
-    await expect(convertCommand(inputDir, { out: outDir })).rejects.toThrow(
-      /One or more files failed/,
-    );
+    const summary = await convertCommand(inputDir, { out: outDir });
+
+    expectPublishedSingleSkip(summary, outDir, {
+      reasonIncludes: "No extractable content found",
+    });
   });
 
-  it("exits non-zero after partial failures without publishing final outputs", async () => {
+  it("publishes successful outputs when another file cannot be converted", async () => {
     vi.spyOn(console, "log").mockImplementation(() => undefined);
     const inputDir = path.join(root.dir, "partial-failure-input");
     const outDir = path.join(root.dir, "partial-failure-output");
@@ -144,11 +146,13 @@ describe("convert command", () => {
     await writeFile(path.join(inputDir, "keep.txt"), "Keep me", "utf-8");
     await writeFile(path.join(inputDir, "empty.txt"), "", "utf-8");
 
-    await expect(convertCommand(inputDir, { out: outDir })).rejects.toThrow(
-      /One or more files failed/,
-    );
+    const summary = await convertCommand(inputDir, { out: outDir });
+    const bodies = await readOutputBodies(outDir);
 
-    expect(existsSync(outDir)).toBe(false);
+    expect(summary.written).toBe(1);
+    expect(summary.failed).toBe(0);
+    expect(summary.skipped).toBe(1);
+    expect(bodies[0]).toContain("Keep me");
   });
 
   it("rejects output folders that are the input folder or its parent", async () => {
@@ -174,7 +178,7 @@ describe("convert command", () => {
     );
   });
 
-  it("fails empty or no-readable-content HTML without publishing output", async () => {
+  it("skips empty or no-readable-content HTML without failing the whole conversion", async () => {
     vi.spyOn(console, "log").mockImplementation(() => undefined);
     const inputDir = await seedSingleFileInput(
       "empty-html-input",
@@ -183,10 +187,11 @@ describe("convert command", () => {
     );
     const outDir = path.join(root.dir, "empty-html-output");
 
-    await expect(convertCommand(inputDir, { out: outDir })).rejects.toThrow(
-      /One or more files failed/,
-    );
-    expect(existsSync(outDir)).toBe(false);
+    const summary = await convertCommand(inputDir, { out: outDir });
+
+    expectPublishedSingleSkip(summary, outDir, {
+      reasonIncludes: "No readable HTML content found",
+    });
   });
 
   it("accepts malformed-but-readable HTML", async () => {

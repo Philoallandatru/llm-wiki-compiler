@@ -13,6 +13,7 @@ import * as XLSX from "xlsx";
 import { describe, expect, it, vi } from "vitest";
 import convertCommand from "../src/commands/convert.js";
 import type { ConvertOptions, ConvertSummary } from "../src/convert/types.js";
+import { expectPublishedSingleSkip } from "./fixtures/convert-assertions.js";
 import { useTempRoot } from "./fixtures/temp-root.js";
 
 const root = useTempRoot();
@@ -95,16 +96,19 @@ describe("convert Office and tabular files", () => {
     expect(bodies[0]).toContain("## Slide 2");
   });
 
-  it("reports unreadable Office documents as conversion failures", async () => {
+  it("skips unreadable Office documents without failing the whole conversion", async () => {
     vi.spyOn(console, "log").mockImplementation(() => undefined);
     const inputDir = path.join(root.dir, "bad-office-input");
     const outDir = path.join(root.dir, "bad-office-output");
     await mkdir(inputDir, { recursive: true });
     await writeFile(path.join(inputDir, "broken.docx"), "not a zip");
 
-    await expect(convertCommand(inputDir, { out: outDir })).rejects.toThrow(
-      /One or more files failed/,
-    );
+    const summary = await convertCommand(inputDir, { out: outDir });
+
+    expectPublishedSingleSkip(summary, outDir, {
+      fileIncludes: "broken.docx",
+      reasonIncludes: "conversion skipped",
+    });
   });
 
   it("converts CSV and TSV files into Markdown tables", async () => {
